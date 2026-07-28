@@ -1,5 +1,17 @@
 {
   "version": "0.1",
-  "description": "Optional lightweight annotations for CalibVLM-lite scene images.",
-  "images": []
+  "description": "Optional lightweight manual object annotations for GeoVLM-SceneReasoner.",
+  "images": [
+    {
+      "image": "scene_0001.jpg",
+      "objects": [
+        {
+          "object_id": "obj_001",
+          "label": "cup",
+          "bbox_xyxy": [120, 180, 260, 420],
+          "notes": "Manual boxes are allowed when automatic detection is unstable."
+        }
+      ]
+    }
+  ]
 }

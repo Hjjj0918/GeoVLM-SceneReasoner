@@ -1,0 +1,32 @@
+{
+  "project": "GeoVLM-SceneReasoner",
+  "device_policy": {
+    "run_stages_separately": true,
+    "default_device": "cuda",
+    "fallback_device": "cpu",
+    "gpu_memory_note": "Use small model variants and save intermediate outputs instead of loading all models together."
+  },
+  "models": {
+    "detector": {
+      "name": "YOLO",
+      "variant": "yolo11n or yolo11s",
+      "output_dir": "outputs/detections"
+    },
+    "segmenter": {
+      "name": "SAM2",
+      "variant": "tiny or small",
+      "output_dir": "outputs/masks"
+    },
+    "depth_estimator": {
+      "name": "Depth Anything V2",
+      "variant": "small",
+      "output_dir": "outputs/depth"
+    },
+    "reasoner": {
+      "pure_vlm": "configurable",
+      "geometry_only_llm": "configurable",
+      "geovlm": "configurable",
+      "output_dir": "outputs/reasoning"
+    }
+  }
+}

@@ -23,8 +23,6 @@ docs/
 # Raw local datasets
 data/images/*
 !data/images/.gitkeep
-data/calibration/*
-!data/calibration/.gitkeep
 
 # Generated pipeline outputs
 outputs/**
@@ -35,15 +33,14 @@ outputs/**
 !outputs/masks/.gitkeep
 !outputs/depth/
 !outputs/depth/.gitkeep
-!outputs/object_3d/
-!outputs/object_3d/.gitkeep
-!outputs/vlm_answers/
-!outputs/vlm_answers/.gitkeep
 !outputs/visualizations/
 !outputs/visualizations/.gitkeep
-
-# Generated calibration result
-configs/camera_intrinsics.json
+!outputs/geometry/
+!outputs/geometry/.gitkeep
+!outputs/reasoning/
+!outputs/reasoning/.gitkeep
+!outputs/evaluations/
+!outputs/evaluations/.gitkeep
 
 # Model weights and checkpoints
 *.pt

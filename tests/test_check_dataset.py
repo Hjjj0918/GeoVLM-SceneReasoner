@@ -70,6 +70,37 @@ class DatasetCheckTest(unittest.TestCase):
         self.assertEqual(summary.total_images, 0)
         self.assertFalse(summary.has_inconsistent_dimensions)
 
+    def test_dataset_status_reports_missing_question_file(self):
+        image_dir = self.tmp_path / "data" / "images"
+        question_path = self.tmp_path / "data" / "questions.json"
+        image_dir.mkdir(parents=True)
+
+        status = self.module.build_dataset_status(
+            scene_dir=image_dir,
+            question_path=question_path,
+        )
+
+        self.assertEqual(status.scene_summary.total_images, 0)
+        self.assertFalse(status.question_file_exists)
+        self.assertEqual(status.question_count, 0)
+
+    def test_dataset_status_counts_questions_when_file_exists(self):
+        image_dir = self.tmp_path / "data" / "images"
+        question_path = self.tmp_path / "data" / "questions.json"
+        image_dir.mkdir(parents=True)
+        question_path.write_text(
+            '{"questions": [{"question_id": "q001"}, {"question_id": "q002"}]}',
+            encoding="utf-8",
+        )
+
+        status = self.module.build_dataset_status(
+            scene_dir=image_dir,
+            question_path=question_path,
+        )
+
+        self.assertTrue(status.question_file_exists)
+        self.assertEqual(status.question_count, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,30 @@
+{
+  "version": "0.1",
+  "description": "Example GeoVLM-SceneReasoner benchmark questions.",
+  "questions": [
+    {
+      "question_id": "scene_0001_q001",
+      "image": "scene_0001.jpg",
+      "question": "Which object is closer to the camera, the cup or the laptop?",
+      "type": "closer_farther",
+      "target_objects": ["cup", "laptop"],
+      "answer": "cup",
+      "evaluation": {
+        "metric": "exact_match",
+        "acceptable_answers": ["cup"]
+      }
+    },
+    {
+      "question_id": "scene_0001_q002",
+      "image": "scene_0001.jpg",
+      "question": "Is the cup to the left or right of the laptop?",
+      "type": "left_right",
+      "target_objects": ["cup", "laptop"],
+      "answer": "left",
+      "evaluation": {
+        "metric": "exact_match",
+        "acceptable_answers": ["left", "to the left"]
+      }
+    }
+  ]
+}

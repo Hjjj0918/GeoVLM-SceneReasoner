@@ -1,26 +1,42 @@
-# CalibVLM
+# GeoVLM-SceneReasoner
 
-Geometry-aware vision-language perception for embodied AI.
+**GeoVLM-SceneReasoner: Geometry-Aware Visual Reasoning for Vision-Language Models**
 
-This repository is starting with **CalibVLM-lite**, a lightweight research-oriented desktop-scene pipeline. The core idea is to compare ordinary VLM spatial reasoning against a geometry-aware version that also receives structured observations such as object boxes, masks, estimated depth, camera intrinsics, and approximate 3D camera coordinates.
+This is the non-robotics version of CalibVLM. The project asks whether VLMs are reliable on real-image spatial reasoning, and whether explicit object-level geometry can improve their answers.
 
-## Stage 1: Dataset Setup and Camera Calibration
+Core question:
 
-Current stage:
+```text
+Can detection, segmentation, and depth-derived object geometry improve VLM reasoning about spatial relations, distance, occlusion, support, and physical size?
+```
 
-- Define the project structure.
-- Collect real desktop images.
-- Collect chessboard calibration images.
-- Estimate camera intrinsics with OpenCV.
-- Save intrinsics in a JSON format that later geometry code can consume.
+## Motivation
+
+Recent VLM reasoning benchmarks argue that strong multimodal models still struggle with genuinely visual reasoning. EasyARC focuses on true visual reasoning, VisuLogic evaluates vision-centric reasoning categories such as spatial relations and attribute comparison, and VLM2-Bench provides a larger VQA-style reference dataset.
+
+This repo does not try to train a new model. It builds a small benchmark and a staged inference pipeline:
+
+```text
+image
+-> object detection
+-> SAM2 segmentation
+-> Depth Anything V2 depth estimation
+-> object-level spatial representation
+-> VLM / LLM reasoning
+-> pure VLM vs geometry-aware comparison
+```
+
+## Stage 1
+
+Current stage: project identity, dataset layout, benchmark question schema, and validation scripts.
 
 Not included yet:
 
-- YOLO object detection.
-- SAM segmentation.
-- Depth Anything depth estimation.
-- VLM or LLM reasoning.
-- Evaluation benchmark.
+- YOLO detection.
+- SAM2 segmentation.
+- Depth Anything V2.
+- VLM API or local VLM inference.
+- Automatic evaluation tables.
 
 ## Setup
 
@@ -30,37 +46,39 @@ Use Python 3.10 or newer. A conda environment is recommended.
 python -m pip install -r requirements.txt
 ```
 
-Stage 1 uses CPU only. Your RTX 4060 8GB is not needed until later model stages.
+Stage 1 is CPU-only.
 
 ## Directory Layout
 
 ```text
 configs/
-  camera_intrinsics.example.json
+  pipeline.example.json
+  geometry_schema.example.json
 data/
   images/
-  calibration/
   annotations.json
+  questions.example.json
 outputs/
   detections/
   masks/
   depth/
-  object_3d/
-  vlm_answers/
+  geometry/
+  reasoning/
+  evaluations/
   visualizations/
 scripts/
   00_check_dataset.py
-  01_calibrate_camera.py
+  01_validate_questions.py
 report/
-  calibvlm_project_note.md
+  project_note.md
 tests/
 ```
 
-Raw images and generated outputs are ignored by Git by default. The folder structure is preserved with `.gitkeep` files.
+Raw images, generated outputs, model weights, local environments, and `docs/` planning artifacts are ignored by Git.
 
 ## Data Collection
 
-Place desktop scene images in:
+Place real images in:
 
 ```text
 data/images/
@@ -74,96 +92,107 @@ scene_0002.jpg
 scene_0003.jpg
 ```
 
-For the MVP, collect 30-50 images. Each image should contain 3-6 common tabletop objects such as a cup, mouse, book, bottle, keyboard, pen, notebook, or laptop.
+For an MVP, use 30-50 real images. Desktop scenes are enough. Each image should contain 3-6 common objects such as a cup, mouse, book, bottle, keyboard, phone, pen, laptop, or notebook.
 
-Place chessboard calibration images in:
+You do not need a chessboard or camera calibration for the first version. The project initially uses image-space relations and relative depth:
+
+- left/right from object centers
+- closer/farther from relative depth
+- larger/smaller from mask area and depth cues
+- possible occlusion from mask/bbox overlap and depth ordering
+
+## Benchmark Questions
+
+Start from:
 
 ```text
-data/calibration/
+data/questions.example.json
 ```
 
-Recommended names:
+When you have real images, copy it to:
 
 ```text
-calib_0001.jpg
-calib_0002.jpg
-calib_0003.jpg
+data/questions.json
 ```
 
-Use 10-20 calibration images from varied positions and angles. Keep the chessboard flat and fully visible. The default script assumes a 9 by 6 inner-corner chessboard with 25 mm squares. Change the CLI arguments if your physical board is different.
+Question types:
 
-## Check Dataset
+- `closer_farther`
+- `left_right`
+- `front_back`
+- `occlusion`
+- `support_relation`
+- `physical_size`
+
+Example:
+
+```json
+{
+  "question_id": "scene_0001_q001",
+  "image": "scene_0001.jpg",
+  "question": "Which object is closer to the camera, the cup or the laptop?",
+  "type": "closer_farther",
+  "target_objects": ["cup", "laptop"],
+  "answer": "cup",
+  "evaluation": {
+    "metric": "exact_match",
+    "acceptable_answers": ["cup"]
+  }
+}
+```
+
+## Validation
+
+Check dataset status:
 
 ```powershell
 python scripts/00_check_dataset.py
 ```
 
-This prints:
-
-- Number of scene images.
-- Number of calibration images.
-- Image dimensions.
-- Warnings for inconsistent dimensions.
-- Warnings for filenames outside the recommended pattern.
-
-Empty folders are allowed at this stage. The script still runs so you can verify the project structure before collecting data.
-
-## Calibrate Camera
-
-Default command:
+Validate questions:
 
 ```powershell
-python scripts/01_calibrate_camera.py
+python scripts/01_validate_questions.py --questions data/questions.example.json
 ```
 
-If your chessboard differs from the default, pass the real inner-corner count and square size:
+Run tests:
 
 ```powershell
-python scripts/01_calibrate_camera.py --rows 9 --cols 6 --square-size-m 0.025
+python -m pytest -q
 ```
 
-Important: `--rows` and `--cols` are inner corners, not the number of black/white squares.
+## Experimental Comparison
 
-The script writes:
+The final benchmark should compare:
 
-```text
-configs/camera_intrinsics.json
-```
+- **Pure VLM:** image + question.
+- **Geometry-only LLM:** object-level geometry JSON/text + question.
+- **GeoVLM:** image + object-level geometry text + question.
 
-That file contains:
+Metrics:
 
-- `fx`, `fy`, `cx`, `cy`
-- `camera_matrix`
-- `distortion_coefficients`
-- `image_width`, `image_height`
-- `reprojection_error`
-- calibration board metadata
+- accuracy
+- closer/farther accuracy
+- left/right accuracy
+- occlusion accuracy
+- physical-size accuracy
+- reasoning consistency
+- failure case analysis
 
-## Success Criteria
+## GPU Plan
 
-Stage 1 is successful when:
+Your RTX 4060 8GB is enough if the pipeline is staged:
 
-- `python scripts/00_check_dataset.py` runs and reports dataset status.
-- Valid chessboard images in `data/calibration/` produce `configs/camera_intrinsics.json`.
-- The reprojection error is printed.
-- The JSON contains camera intrinsics and distortion coefficients.
-- Failure cases are explicit, for example no calibration images or too few detected chessboards.
+1. detection -> save JSON
+2. segmentation -> save masks
+3. depth -> save depth maps
+4. geometry -> save object-level JSON
+5. reasoning -> save answers
 
-## Common Calibration Problems
+Use small model variants first and avoid loading YOLO, SAM2, Depth Anything, and a VLM at the same time.
 
-- Wrong `--rows` or `--cols`: use inner corners, not square count.
-- Motion blur or glare: retake sharper images.
-- Chessboard partly outside the image: keep the whole board visible.
-- Too few angles: capture the board near image corners and at different tilts.
-- Mixed image resolutions: keep all calibration images at the same resolution.
+## References
 
-## GPU Fallback
-
-Stage 1 has no GPU requirement.
-
-For later stages on RTX 4060 8GB:
-
-- Run detection, segmentation, depth, geometry, and VLM reasoning as separate scripts.
-- Save intermediate JSON, masks, and depth maps.
-- Prefer small model variants first.
-- Avoid loading YOLO, SAM, Depth Anything, and a VLM at the same time.
+- EasyARC: Evaluating Vision Language Models on True Visual Reasoning, arXiv:2506.11595.
+- VisuLogic: A Benchmark for Evaluating Visual Reasoning in Multi-modal Large Language Models, arXiv:2504.15279.
+- VLM2-Bench dataset: `Sterzhang/vlm2-bench` on Hugging Face.

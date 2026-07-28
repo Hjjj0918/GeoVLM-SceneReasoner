@@ -1,8 +1,9 @@
-"""Check CalibVLM-lite dataset folders before running the pipeline."""
+"""Check GeoVLM-SceneReasoner dataset files before running the pipeline."""
 
 from __future__ import annotations
 
 import argparse
+import json
 import re
 from pathlib import Path
 from typing import NamedTuple
@@ -24,6 +25,12 @@ class DatasetSummary(NamedTuple):
     total_images: int
     unique_dimensions: list[tuple[int, int]]
     has_inconsistent_dimensions: bool
+
+
+class DatasetStatus(NamedTuple):
+    scene_summary: DatasetSummary
+    question_file_exists: bool
+    question_count: int
 
 
 def is_image_file(path: Path) -> bool:
@@ -72,6 +79,25 @@ def summarize_dimensions(records: list[ImageRecord]) -> DatasetSummary:
     )
 
 
+def count_questions(question_path: Path) -> int:
+    if not question_path.exists():
+        return 0
+    payload = json.loads(question_path.read_text(encoding="utf-8"))
+    questions = payload.get("questions", [])
+    if not isinstance(questions, list):
+        raise ValueError(f"questions must be a list in {question_path}")
+    return len(questions)
+
+
+def build_dataset_status(scene_dir: Path, question_path: Path) -> DatasetStatus:
+    scene_records = collect_image_records(scene_dir, expected_prefix="scene")
+    return DatasetStatus(
+        scene_summary=summarize_dimensions(scene_records),
+        question_file_exists=question_path.exists(),
+        question_count=count_questions(question_path),
+    )
+
+
 def print_section(title: str, records: list[ImageRecord]) -> None:
     summary = summarize_dimensions(records)
     print(f"\n{title}")
@@ -95,25 +121,29 @@ def print_section(title: str, records: list[ImageRecord]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Check CalibVLM-lite dataset folders.")
+    parser = argparse.ArgumentParser(description="Check GeoVLM-SceneReasoner dataset folders.")
     parser.add_argument("--scene-dir", type=Path, default=Path("data/images"))
-    parser.add_argument("--calibration-dir", type=Path, default=Path("data/calibration"))
+    parser.add_argument("--questions", type=Path, default=Path("data/questions.json"))
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
     scene_records = collect_image_records(args.scene_dir, expected_prefix="scene")
-    calibration_records = collect_image_records(args.calibration_dir, expected_prefix="calib")
+    status = build_dataset_status(args.scene_dir, args.questions)
 
-    print("CalibVLM-lite dataset check")
+    print("GeoVLM-SceneReasoner dataset check")
     print_section("Scene images", scene_records)
-    print_section("Calibration images", calibration_records)
+    print("\nBenchmark questions")
+    print("-------------------")
+    print(f"Question file: {args.questions}")
+    print(f"Exists: {status.question_file_exists}")
+    print(f"Questions: {status.question_count}")
 
     if not scene_records:
         print("\nNext: add desktop scene images to data/images/ as scene_0001.jpg, scene_0002.jpg, ...")
-    if not calibration_records:
-        print("Next: add chessboard calibration images to data/calibration/ as calib_0001.jpg, calib_0002.jpg, ...")
+    if not status.question_file_exists:
+        print("Next: copy data/questions.example.json to data/questions.json and edit questions for your images.")
 
     return 0
 
