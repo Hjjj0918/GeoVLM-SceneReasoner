@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# Local notebooks and logs
+.ipynb_checkpoints/
+*.log
+
+# Local agent planning artifacts
+docs/
+
+# Raw local datasets
+data/images/*
+!data/images/.gitkeep
+data/calibration/*
+!data/calibration/.gitkeep
+
+# Generated pipeline outputs
+outputs/**
+!outputs/
+!outputs/detections/
+!outputs/detections/.gitkeep
+!outputs/masks/
+!outputs/masks/.gitkeep
+!outputs/depth/
+!outputs/depth/.gitkeep
+!outputs/object_3d/
+!outputs/object_3d/.gitkeep
+!outputs/vlm_answers/
+!outputs/vlm_answers/.gitkeep
+!outputs/visualizations/
+!outputs/visualizations/.gitkeep
+
+# Generated calibration result
+configs/camera_intrinsics.json
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.onnx
+*.safetensors
+checkpoints/
+models/
+weights/
