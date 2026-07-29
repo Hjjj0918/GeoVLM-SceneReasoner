@@ -57,11 +57,11 @@ class DatasetCheckTest(unittest.TestCase):
         self.assertTrue(records[0].has_recommended_name)
 
     def test_summarize_dimensions_detects_inconsistent_sizes(self):
-        image_dir = self.tmp_path / "data" / "calibration"
-        write_image(image_dir / "calib_0001.jpg", width=32, height=24)
-        write_image(image_dir / "calib_0002.jpg", width=64, height=48)
+        image_dir = self.tmp_path / "data" / "images"
+        write_image(image_dir / "scene_0001.jpg", width=32, height=24)
+        write_image(image_dir / "scene_0002.jpg", width=64, height=48)
 
-        records = self.module.collect_image_records(image_dir, expected_prefix="calib")
+        records = self.module.collect_image_records(image_dir, expected_prefix="scene")
         summary = self.module.summarize_dimensions(records)
 
         self.assertEqual(summary.total_images, 2)

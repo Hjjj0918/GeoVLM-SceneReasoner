@@ -2,7 +2,7 @@
 
 **GeoVLM-SceneReasoner: Geometry-Aware Visual Reasoning for Vision-Language Models**
 
-This is the non-robotics version of CalibVLM. The project asks whether VLMs are reliable on real-image spatial reasoning, and whether explicit object-level geometry can improve their answers.
+This project asks whether VLMs are reliable on real-image spatial reasoning, and whether explicit object-level geometry can improve their answers.
 
 Core question:
 
@@ -26,13 +26,19 @@ image
 -> pure VLM vs geometry-aware comparison
 ```
 
-## Stage 1
+## Current Stage
 
-Current stage: project identity, dataset layout, benchmark question schema, and validation scripts.
+Current stage: real-image benchmark setup and staged object detection.
+
+Included:
+
+- Project identity, dataset layout, benchmark question schema, and validation scripts.
+- Multi-view image renaming.
+- Question scaffold generation for same-scene multi-view captures.
+- YOLO detection script.
 
 Not included yet:
 
-- YOLO detection.
 - SAM2 segmentation.
 - Depth Anything V2.
 - VLM API or local VLM inference.
@@ -57,7 +63,9 @@ configs/
 data/
   images/
   annotations.json
+  question_templates.example.json
   questions.example.json
+  questions.json
 outputs/
   detections/
   masks/
@@ -69,8 +77,12 @@ outputs/
 scripts/
   00_check_dataset.py
   01_validate_questions.py
+  02_rename_images.py
+  03_scaffold_questions.py
+  04_detect_objects.py
 report/
   project_note.md
+  roadmap.md
 tests/
 ```
 
@@ -94,7 +106,7 @@ scene_0003.jpg
 
 For an MVP, use 30-50 real images. Desktop scenes are enough. Each image should contain 3-6 common objects such as a cup, mouse, book, bottle, keyboard, phone, pen, laptop, or notebook.
 
-You do not need a chessboard or camera calibration for the first version. The project initially uses image-space relations and relative depth:
+The first version uses image-space relations and relative depth:
 
 - left/right from object centers
 - closer/farther from relative depth
@@ -174,6 +186,33 @@ Validate questions:
 ```powershell
 python scripts/01_validate_questions.py --questions data/questions.example.json
 python scripts/01_validate_questions.py --questions data/questions.draft.json
+python scripts/01_validate_questions.py --questions data/questions.json
+```
+
+## Object Detection
+
+Run a dry run first:
+
+```powershell
+python scripts/04_detect_objects.py --dry-run --limit 3
+```
+
+Run YOLO detection:
+
+```powershell
+python scripts/04_detect_objects.py --model yolo11n.pt --device cuda --overwrite
+```
+
+If CUDA is unavailable, use CPU:
+
+```powershell
+python scripts/04_detect_objects.py --model yolo11n.pt --device cpu --overwrite
+```
+
+Detection JSON files are written to:
+
+```text
+outputs/detections/
 ```
 
 Run tests:
