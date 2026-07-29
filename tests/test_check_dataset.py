@@ -47,6 +47,15 @@ class DatasetCheckTest(unittest.TestCase):
         self.assertFalse(records[0].has_recommended_name)
         self.assertTrue(records[1].has_recommended_name)
 
+    def test_scene_view_names_are_recommended_names(self):
+        image_dir = self.tmp_path / "data" / "images"
+        write_image(image_dir / "scene_0001_view_00.jpg", width=32, height=24)
+
+        records = self.module.collect_image_records(image_dir, expected_prefix="scene")
+
+        self.assertEqual(records[0].path.name, "scene_0001_view_00.jpg")
+        self.assertTrue(records[0].has_recommended_name)
+
     def test_summarize_dimensions_detects_inconsistent_sizes(self):
         image_dir = self.tmp_path / "data" / "calibration"
         write_image(image_dir / "calib_0001.jpg", width=32, height=24)

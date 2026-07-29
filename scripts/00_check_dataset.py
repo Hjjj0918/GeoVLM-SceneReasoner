@@ -38,7 +38,7 @@ def is_image_file(path: Path) -> bool:
 
 
 def has_recommended_name(path: Path, expected_prefix: str) -> bool:
-    pattern = rf"^{re.escape(expected_prefix)}_\d{{4}}\.(jpg|jpeg|png|bmp)$"
+    pattern = rf"^{re.escape(expected_prefix)}_\d{{4}}(?:_view_\d{{2,}})?\.(jpg|jpeg|png|bmp)$"
     return re.match(pattern, path.name, flags=re.IGNORECASE) is not None
 
 
