@@ -229,6 +229,27 @@ outputs/visualizations/detections/
 
 Review these images before running segmentation. Low-confidence duplicate boxes or wrong labels should be corrected or filtered before they are used as SAM2 prompts.
 
+Normalize labels after visual review:
+
+```powershell
+python scripts/06_normalize_detections.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/detections/
+configs/detection_corrections.example.json
+```
+
+and writes:
+
+```text
+outputs/detections_normalized/
+```
+
+The raw YOLO outputs stay unchanged. Normalized detections preserve the original label in `raw_label`, for example when a closed laptop is detected as `book` and normalized to `laptop`.
+
 Run tests:
 
 ```powershell

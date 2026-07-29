@@ -1,0 +1,8 @@
+{
+  "version": "0.1",
+  "description": "Explicit label normalization rules for the current GeoVLM scene. The closed laptop is visually similar to a book in some views, so raw YOLO 'book' detections are normalized to 'laptop' while preserving raw_label.",
+  "global_label_aliases": {
+    "book": "laptop"
+  },
+  "image_label_aliases": {}
+}
