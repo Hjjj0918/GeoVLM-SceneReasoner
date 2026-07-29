@@ -215,6 +215,20 @@ Detection JSON files are written to:
 outputs/detections/
 ```
 
+Visualize detection boxes for manual review:
+
+```powershell
+python scripts/05_visualize_detections.py --overwrite
+```
+
+Visualization images are written to:
+
+```text
+outputs/visualizations/detections/
+```
+
+Review these images before running segmentation. Low-confidence duplicate boxes or wrong labels should be corrected or filtered before they are used as SAM2 prompts.
+
 Run tests:
 
 ```powershell
