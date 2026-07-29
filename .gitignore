@@ -23,6 +23,7 @@ docs/
 # Raw local datasets
 data/images/*
 !data/images/.gitkeep
+data/questions.draft.json
 
 # Generated pipeline outputs
 outputs/**

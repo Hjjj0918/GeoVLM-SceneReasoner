@@ -1,0 +1,40 @@
+{
+  "version": "0.1",
+  "description": "Edit these scene-level templates, then expand them across all views with scripts/03_scaffold_questions.py.",
+  "scene_group": "scene_0001",
+  "templates": [
+    {
+      "template_id": "q001",
+      "question": "Which object is closer to the camera, laptop or mouse?",
+      "type": "closer_farther",
+      "target_objects": ["laptop", "mouse"],
+      "answer": "laptop",
+      "evaluation": {
+        "metric": "exact_match",
+        "acceptable_answers": ["laptop"]
+      }
+    },
+    {
+      "template_id": "q002",
+      "question": "Which object is most likely on the table?",
+      "type": "support_relation",
+      "target_objects": ["laptop"],
+      "answer": "laptop",
+      "evaluation": {
+        "metric": "exact_match",
+        "acceptable_answers": ["laptop"]
+      }
+    },
+    {
+      "template_id": "q003",
+      "question": "Which object is physically larger, laptop or cup?",
+      "type": "physical_size",
+      "target_objects": ["laptop", "cup"],
+      "answer": "laptop",
+      "evaluation": {
+        "metric": "exact_match",
+        "acceptable_answers": ["laptop"]
+      }
+    }
+  ]
+}

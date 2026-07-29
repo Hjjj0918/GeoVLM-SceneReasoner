@@ -109,11 +109,31 @@ Start from:
 data/questions.example.json
 ```
 
-When you have real images, copy it to:
+For a single image or a small manual benchmark, copy it to:
 
 ```text
 data/questions.json
 ```
+
+For a same-scene multi-view capture, edit:
+
+```text
+data/question_templates.example.json
+```
+
+Then expand the templates across every image view:
+
+```powershell
+python scripts/03_scaffold_questions.py
+```
+
+This writes:
+
+```text
+data/questions.draft.json
+```
+
+Review the object names, answers, and ambiguous views before saving the final benchmark as `data/questions.json`.
 
 Question types:
 
@@ -153,6 +173,7 @@ Validate questions:
 
 ```powershell
 python scripts/01_validate_questions.py --questions data/questions.example.json
+python scripts/01_validate_questions.py --questions data/questions.draft.json
 ```
 
 Run tests:
