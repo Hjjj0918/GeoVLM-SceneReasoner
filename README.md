@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, and review visualizations.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, and Depth Anything V2 depth estimation.
 
 Included:
 
@@ -39,10 +39,10 @@ Included:
 - Detection normalization for common label corrections.
 - SAM2 segmentation from normalized detections.
 - Detection and mask visualization scripts for manual review.
+- Depth Anything V2 relative depth estimation.
 
 Not included yet:
 
-- Depth Anything V2.
 - VLM API or local VLM inference.
 - Automatic evaluation tables.
 
@@ -87,6 +87,7 @@ scripts/
   06_normalize_detections.py
   07_segment_objects.py
   08_visualize_masks.py
+  09_estimate_depth.py
 report/
   project_note.md
   roadmap.md
@@ -313,6 +314,48 @@ outputs/visualizations/masks/
 ```
 
 Each visualization overlays the binary masks on the original image and labels each object with `object_id`, normalized label, and mask area in pixels. Review these images before running depth or geometry extraction, because geometry quality depends on whether the mask actually covers the intended object.
+
+## Depth Estimation
+
+Run a dry run first:
+
+```powershell
+python scripts/09_estimate_depth.py --dry-run --limit 3
+```
+
+Run Depth Anything V2 on CPU:
+
+```powershell
+python scripts/09_estimate_depth.py --device cpu --overwrite
+```
+
+If CUDA is available:
+
+```powershell
+python scripts/09_estimate_depth.py --device cuda --overwrite
+```
+
+By default this uses:
+
+```text
+depth-anything/Depth-Anything-V2-Small-hf
+```
+
+This reads:
+
+```text
+data/images/
+```
+
+and writes:
+
+```text
+outputs/depth/<image_stem>.npy
+outputs/depth/<image_stem>_preview.jpg
+outputs/depth/<image_stem>.json
+```
+
+The `.npy` file stores the raw relative depth map as `float32`. The `_preview.jpg` file is only for visual review. The `.json` file records the image name, model name, output paths, depth shape, and depth statistics. Depth Anything V2 produces monocular relative depth, so these values should be used for ranking and object-level comparison, not as metric centimeters or meters.
 
 Run tests:
 
