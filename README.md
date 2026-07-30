@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup and staged object detection.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, and review visualizations.
 
 Included:
 
@@ -36,10 +36,12 @@ Included:
 - Multi-view image renaming.
 - Question scaffold generation for same-scene multi-view captures.
 - YOLO detection script.
+- Detection normalization for common label corrections.
+- SAM2 segmentation from normalized detections.
+- Detection and mask visualization scripts for manual review.
 
 Not included yet:
 
-- SAM2 segmentation.
 - Depth Anything V2.
 - VLM API or local VLM inference.
 - Automatic evaluation tables.
@@ -68,6 +70,7 @@ data/
   questions.json
 outputs/
   detections/
+  detections_normalized/
   masks/
   depth/
   geometry/
@@ -80,6 +83,10 @@ scripts/
   02_rename_images.py
   03_scaffold_questions.py
   04_detect_objects.py
+  05_visualize_detections.py
+  06_normalize_detections.py
+  07_segment_objects.py
+  08_visualize_masks.py
 report/
   project_note.md
   roadmap.md
@@ -285,6 +292,27 @@ outputs/masks/<image_stem>/segments.json
 ```
 
 Each mask PNG is a binary object mask. Each `segments.json` file preserves the object label, bbox, confidence, mask path, and mask area.
+
+Visualize SAM2 masks for manual review:
+
+```powershell
+python scripts/08_visualize_masks.py --overwrite
+```
+
+This reads:
+
+```text
+data/images/
+outputs/masks/
+```
+
+and writes:
+
+```text
+outputs/visualizations/masks/
+```
+
+Each visualization overlays the binary masks on the original image and labels each object with `object_id`, normalized label, and mask area in pixels. Review these images before running depth or geometry extraction, because geometry quality depends on whether the mask actually covers the intended object.
 
 Run tests:
 
