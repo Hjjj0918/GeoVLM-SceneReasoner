@@ -250,6 +250,42 @@ outputs/detections_normalized/
 
 The raw YOLO outputs stay unchanged. Normalized detections preserve the original label in `raw_label`, for example when a closed laptop is detected as `book` and normalized to `laptop`.
 
+## Object Segmentation
+
+Run a dry run first:
+
+```powershell
+python scripts/07_segment_objects.py --dry-run --limit 3
+```
+
+Run SAM2 segmentation from normalized detections:
+
+```powershell
+python scripts/07_segment_objects.py --model sam2_t.pt --device cpu --overwrite
+```
+
+If CUDA is available:
+
+```powershell
+python scripts/07_segment_objects.py --model sam2_t.pt --device cuda --overwrite
+```
+
+This reads:
+
+```text
+data/images/
+outputs/detections_normalized/
+```
+
+and writes:
+
+```text
+outputs/masks/<image_stem>/<object_id>.png
+outputs/masks/<image_stem>/segments.json
+```
+
+Each mask PNG is a binary object mask. Each `segments.json` file preserves the object label, bbox, confidence, mask path, and mask area.
+
 Run tests:
 
 ```powershell
