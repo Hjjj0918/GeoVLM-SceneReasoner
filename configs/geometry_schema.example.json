@@ -1,25 +1,66 @@
 {
-  "image": "scene_0001.jpg",
+  "image": "scene_0001_view_00.jpg",
   "image_width": 1280,
   "image_height": 720,
+  "source_segments": "outputs/masks/scene_0001_view_00/segments.json",
+  "source_depth": "outputs/depth/scene_0001_view_00.npy",
+  "depth_order_assumption": "higher_relative_depth_is_closer",
+  "image_depth_min": 0.68,
+  "image_depth_max": 7.66,
+  "image_depth_range": 6.98,
   "objects": [
     {
       "object_id": "obj_001",
       "label": "cup",
       "confidence": 0.91,
       "bbox_xyxy": [120, 180, 260, 420],
-      "mask_path": "outputs/masks/scene_0001/obj_001.png",
       "bbox_center": [190.0, 300.0],
       "mask_centroid": [188.5, 305.2],
       "mask_area_px": 18420,
-      "relative_depth_median": 0.37,
-      "relative_depth_percentile": 0.22,
-      "spatial_tags": {
-        "horizontal_position": "left",
-        "vertical_position": "middle",
-        "depth_order_hint": "near",
-        "occlusion_hint": "not_detected"
-      }
+      "mask_area_fraction": 0.01999,
+      "mask_bounds_xyxy": [121, 181, 258, 419],
+      "relative_depth_min": 1.12,
+      "relative_depth_max": 4.31,
+      "relative_depth_mean": 2.88,
+      "relative_depth_median": 2.95,
+      "relative_depth_p10": 1.76,
+      "relative_depth_p90": 3.85,
+      "relative_depth_percentile": 0.61,
+      "horizontal_position": "left",
+      "vertical_position": "middle",
+      "depth_order_hint": "near"
+    },
+    {
+      "object_id": "obj_002",
+      "label": "laptop",
+      "confidence": 0.84,
+      "bbox_xyxy": [620, 250, 1120, 610],
+      "bbox_center": [870.0, 430.0],
+      "mask_centroid": [865.4, 436.1],
+      "mask_area_px": 99120,
+      "mask_area_fraction": 0.10755,
+      "mask_bounds_xyxy": [618, 248, 1118, 608],
+      "relative_depth_min": 0.92,
+      "relative_depth_max": 3.21,
+      "relative_depth_mean": 2.22,
+      "relative_depth_median": 2.3,
+      "relative_depth_p10": 1.41,
+      "relative_depth_p90": 2.95,
+      "relative_depth_percentile": 0.46,
+      "horizontal_position": "right",
+      "vertical_position": "middle",
+      "depth_order_hint": "middle"
+    }
+  ],
+  "pairwise_relations": [
+    {
+      "object_a": "obj_001",
+      "label_a": "cup",
+      "object_b": "obj_002",
+      "label_b": "laptop",
+      "horizontal_relation": "left_of",
+      "vertical_relation": "aligned",
+      "depth_relation": "closer_than"
     }
   ]
 }

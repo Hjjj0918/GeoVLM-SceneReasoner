@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, and Depth Anything V2 depth estimation.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, and object-level geometry extraction.
 
 Included:
 
@@ -40,6 +40,7 @@ Included:
 - SAM2 segmentation from normalized detections.
 - Detection and mask visualization scripts for manual review.
 - Depth Anything V2 relative depth estimation.
+- Object-level geometry extraction from masks and depth maps.
 
 Not included yet:
 
@@ -88,6 +89,7 @@ scripts/
   07_segment_objects.py
   08_visualize_masks.py
   09_estimate_depth.py
+  10_extract_geometry.py
 report/
   project_note.md
   roadmap.md
@@ -356,6 +358,55 @@ outputs/depth/<image_stem>.json
 ```
 
 The `.npy` file stores the raw relative depth map as `float32`. The `_preview.jpg` file is only for visual review. The `.json` file records the image name, model name, output paths, depth shape, and depth statistics. Depth Anything V2 produces monocular relative depth, so these values should be used for ranking and object-level comparison, not as metric centimeters or meters.
+
+## Geometry Extraction
+
+Run a dry run first:
+
+```powershell
+python scripts/10_extract_geometry.py --dry-run --limit 3
+```
+
+Extract object-level geometry:
+
+```powershell
+python scripts/10_extract_geometry.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/masks/<image_stem>/segments.json
+outputs/masks/<image_stem>/<object_id>.png
+outputs/depth/<image_stem>.npy
+```
+
+and writes:
+
+```text
+outputs/geometry/<image_stem>.json
+```
+
+Each geometry JSON contains:
+
+- object centers from bbox and mask centroid
+- mask bounds and mask area fraction
+- per-object relative depth statistics inside the mask
+- coarse position tags such as `left`, `center`, `right`, `top`, `middle`, `bottom`
+- depth-order hints such as `near`, `middle`, `far`
+- pairwise relations such as `left_of`, `right_of`, `above`, `below`, `closer_than`, `farther_than`, and `similar_depth`
+
+By default the script assumes higher Depth Anything V2 values mean closer objects and records this as:
+
+```text
+higher_relative_depth_is_closer
+```
+
+If manual review shows the opposite for your environment, rerun with:
+
+```powershell
+python scripts/10_extract_geometry.py --lower-depth-is-closer --overwrite
+```
 
 Run tests:
 
