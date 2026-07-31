@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, and reasoning prompt generation.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, reasoning prompt generation, and a geometry-only rule baseline.
 
 Included:
 
@@ -42,11 +42,12 @@ Included:
 - Depth Anything V2 relative depth estimation.
 - Object-level geometry extraction from masks and depth maps.
 - Prompt generation for Pure VLM, Geometry-only LLM, and GeoVLM comparisons.
+- Geometry-only rule baseline with accuracy and coverage summary.
 
 Not included yet:
 
 - VLM API or local VLM inference.
-- Automatic evaluation tables.
+- Full comparison tables across Pure VLM, Geometry-only LLM, and GeoVLM.
 
 ## Setup
 
@@ -92,6 +93,7 @@ scripts/
   09_estimate_depth.py
   10_extract_geometry.py
   11_build_reasoning_prompts.py
+  12_run_geometry_rule_baseline.py
 report/
   project_note.md
   roadmap.md
@@ -440,6 +442,36 @@ Each JSONL record contains:
 - `missing_target_objects`: target labels that were not detected in the geometry file
 
 The answer is stored as metadata for evaluation. It is not inserted into the prompt text.
+
+## Geometry Rule Baseline
+
+Run the geometry-only rule baseline:
+
+```powershell
+python scripts/12_run_geometry_rule_baseline.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/reasoning/prompts.jsonl
+outputs/geometry/<image_stem>.json
+```
+
+and writes:
+
+```text
+outputs/reasoning/geometry_rule_baseline.jsonl
+outputs/evaluations/geometry_rule_baseline_summary.json
+```
+
+The baseline uses simple transparent rules:
+
+- `closer_farther`: pairwise depth relation first, then median relative depth
+- `physical_size`: larger mask area fraction
+- `support_relation`: target object existence plus a simple position/depth/area heuristic
+
+Each result records `prediction`, `source`, `confidence`, `correct`, and `error_reason`. Questions with missing target objects are answered as `unknown` and counted separately through `error_reason=missing_target_objects`, because those are upstream detection/segmentation failures rather than pure reasoning failures.
 
 Run tests:
 
