@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, and object-level geometry extraction.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, and reasoning prompt generation.
 
 Included:
 
@@ -41,6 +41,7 @@ Included:
 - Detection and mask visualization scripts for manual review.
 - Depth Anything V2 relative depth estimation.
 - Object-level geometry extraction from masks and depth maps.
+- Prompt generation for Pure VLM, Geometry-only LLM, and GeoVLM comparisons.
 
 Not included yet:
 
@@ -90,6 +91,7 @@ scripts/
   08_visualize_masks.py
   09_estimate_depth.py
   10_extract_geometry.py
+  11_build_reasoning_prompts.py
 report/
   project_note.md
   roadmap.md
@@ -407,6 +409,37 @@ If manual review shows the opposite for your environment, rerun with:
 ```powershell
 python scripts/10_extract_geometry.py --lower-depth-is-closer --overwrite
 ```
+
+## Reasoning Prompts
+
+Build prompt records for the three-way comparison:
+
+```powershell
+python scripts/11_build_reasoning_prompts.py --overwrite
+```
+
+This reads:
+
+```text
+data/questions.json
+outputs/geometry/<image_stem>.json
+```
+
+and writes:
+
+```text
+outputs/reasoning/prompts.jsonl
+```
+
+Each JSONL record contains:
+
+- benchmark metadata: `question_id`, `image`, `question`, `type`, `target_objects`, `answer`, and `acceptable_answers`
+- `pure_vlm_prompt`: image-only prompt for a VLM
+- `geometry_llm_prompt`: text-only prompt using object-level geometry
+- `geovlm_prompt`: image plus geometry prompt for a VLM
+- `missing_target_objects`: target labels that were not detected in the geometry file
+
+The answer is stored as metadata for evaluation. It is not inserted into the prompt text.
 
 Run tests:
 
