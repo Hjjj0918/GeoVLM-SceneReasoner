@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, reasoning prompt generation, and a geometry-only rule baseline.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, reasoning prompt generation, a geometry-only rule baseline, and pipeline failure reporting.
 
 Included:
 
@@ -43,6 +43,7 @@ Included:
 - Object-level geometry extraction from masks and depth maps.
 - Prompt generation for Pure VLM, Geometry-only LLM, and GeoVLM comparisons.
 - Geometry-only rule baseline with accuracy and coverage summary.
+- Failure report generation for missing target objects.
 
 Not included yet:
 
@@ -94,6 +95,7 @@ scripts/
   10_extract_geometry.py
   11_build_reasoning_prompts.py
   12_run_geometry_rule_baseline.py
+  13_build_failure_report.py
 report/
   project_note.md
   roadmap.md
@@ -472,6 +474,37 @@ The baseline uses simple transparent rules:
 - `support_relation`: target object existence plus a simple position/depth/area heuristic
 
 Each result records `prediction`, `source`, `confidence`, `correct`, and `error_reason`. Questions with missing target objects are answered as `unknown` and counted separately through `error_reason=missing_target_objects`, because those are upstream detection/segmentation failures rather than pure reasoning failures.
+
+The summary reports:
+
+- `end_to_end_accuracy`: correct / total questions
+- `answered_accuracy`: correct / answered questions
+- `coverage`: answered / total questions
+- `unknown_rate`: unknown / total questions
+- `accuracy`: compatibility alias for `end_to_end_accuracy`
+
+## Failure Report
+
+Build a report for upstream pipeline failures:
+
+```powershell
+python scripts/13_build_failure_report.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/reasoning/geometry_rule_baseline.jsonl
+```
+
+and writes:
+
+```text
+outputs/evaluations/pipeline_failure_report.json
+outputs/evaluations/pipeline_failure_report.csv
+```
+
+Use this report to identify which images and labels caused `missing_target_objects`. These cases should be reviewed separately from reasoning failures.
 
 Run tests:
 

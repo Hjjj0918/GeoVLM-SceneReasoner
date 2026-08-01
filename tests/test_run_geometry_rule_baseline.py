@@ -126,10 +126,13 @@ class GeometryRuleBaselineTest(unittest.TestCase):
 
     def test_run_baseline_file_writes_results_and_summary(self):
         self.write_geometry()
+        missing_record = self.prompt_record("closer_farther", ["laptop", "cup"])
+        missing_record["missing_target_objects"] = ["cup"]
         self.write_prompts(
             [
                 self.prompt_record("closer_farther", ["laptop", "mouse"]),
                 self.prompt_record("physical_size", ["laptop", "mouse"]),
+                missing_record,
             ]
         )
 
@@ -140,13 +143,19 @@ class GeometryRuleBaselineTest(unittest.TestCase):
             overwrite=False,
         )
 
-        self.assertEqual(count, 2)
+        self.assertEqual(count, 3)
         result_lines = self.output_path.read_text(encoding="utf-8").splitlines()
-        self.assertEqual(len(result_lines), 2)
+        self.assertEqual(len(result_lines), 3)
         summary = json.loads(self.summary_path.read_text(encoding="utf-8"))
-        self.assertEqual(summary["total"], 2)
+        self.assertEqual(summary["total"], 3)
+        self.assertEqual(summary["answered"], 2)
         self.assertEqual(summary["correct"], 2)
-        self.assertEqual(summary["accuracy"], 1.0)
+        self.assertEqual(summary["end_to_end_accuracy"], 0.666667)
+        self.assertEqual(summary["answered_accuracy"], 1.0)
+        self.assertEqual(summary["coverage"], 0.666667)
+        self.assertEqual(summary["unknown_rate"], 0.333333)
+        self.assertEqual(summary["accuracy"], summary["end_to_end_accuracy"])
+        self.assertEqual(summary["by_type"]["closer_farther"]["answered_accuracy"], 1.0)
 
     def test_run_baseline_file_rejects_existing_output_without_overwrite(self):
         self.write_geometry()

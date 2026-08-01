@@ -206,25 +206,40 @@ def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     total = len(results)
     correct = sum(1 for result in results if result.get("correct"))
     answered = sum(1 for result in results if result.get("prediction") != "unknown")
+    unknown = total - answered
+    end_to_end_accuracy = round(correct / total, 6) if total else 0.0
+    answered_accuracy = round(correct / answered, 6) if answered else 0.0
+    coverage = round(answered / total, 6) if total else 0.0
+    unknown_rate = round(unknown / total, 6) if total else 0.0
     by_type: dict[str, dict[str, Any]] = {}
     for question_type, group_count in collections.Counter(str(result.get("type")) for result in results).items():
         group = [result for result in results if str(result.get("type")) == question_type]
         group_correct = sum(1 for result in group if result.get("correct"))
         group_answered = sum(1 for result in group if result.get("prediction") != "unknown")
+        group_unknown = group_count - group_answered
+        group_end_to_end_accuracy = round(group_correct / group_count, 6) if group_count else 0.0
         by_type[question_type] = {
             "total": group_count,
             "answered": group_answered,
+            "unknown": group_unknown,
             "correct": group_correct,
-            "accuracy": round(group_correct / group_count, 6) if group_count else 0.0,
+            "end_to_end_accuracy": group_end_to_end_accuracy,
+            "answered_accuracy": round(group_correct / group_answered, 6) if group_answered else 0.0,
+            "accuracy": group_end_to_end_accuracy,
             "coverage": round(group_answered / group_count, 6) if group_count else 0.0,
+            "unknown_rate": round(group_unknown / group_count, 6) if group_count else 0.0,
         }
     return {
         "baseline": "geometry_rule",
         "total": total,
         "answered": answered,
+        "unknown": unknown,
         "correct": correct,
-        "accuracy": round(correct / total, 6) if total else 0.0,
-        "coverage": round(answered / total, 6) if total else 0.0,
+        "end_to_end_accuracy": end_to_end_accuracy,
+        "answered_accuracy": answered_accuracy,
+        "accuracy": end_to_end_accuracy,
+        "coverage": coverage,
+        "unknown_rate": unknown_rate,
         "by_type": by_type,
         "error_reasons": dict(collections.Counter(str(result.get("error_reason")) for result in results if result.get("error_reason"))),
     }
