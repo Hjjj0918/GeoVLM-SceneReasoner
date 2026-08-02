@@ -28,7 +28,7 @@ image
 
 ## Current Stage
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, reasoning prompt generation, a geometry-only rule baseline, and pipeline failure reporting.
+Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, reasoning prompt generation, a geometry-only rule baseline, pipeline failure reporting, and evaluation split generation.
 
 Included:
 
@@ -44,6 +44,7 @@ Included:
 - Prompt generation for Pure VLM, Geometry-only LLM, and GeoVLM comparisons.
 - Geometry-only rule baseline with accuracy and coverage summary.
 - Failure report generation for missing target objects.
+- Evaluation split generation for separating upstream pipeline failures from geometry-available candidates.
 
 Not included yet:
 
@@ -96,6 +97,7 @@ scripts/
   11_build_reasoning_prompts.py
   12_run_geometry_rule_baseline.py
   13_build_failure_report.py
+  14_build_evaluation_splits.py
 report/
   project_note.md
   roadmap.md
@@ -506,6 +508,42 @@ outputs/evaluations/pipeline_failure_report.csv
 
 Use this report to identify which images and labels caused `missing_target_objects`. These cases should be reviewed separately from reasoning failures.
 
+## Evaluation Splits
+
+Build an evaluation split and a row-level review file:
+
+```powershell
+python scripts/14_build_evaluation_splits.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/reasoning/geometry_rule_baseline.jsonl
+```
+
+and writes:
+
+```text
+outputs/evaluations/evaluation_splits.json
+outputs/evaluations/evaluation_review.csv
+```
+
+The script applies an automatic, conservative split:
+
+- `pipeline_failure`: the baseline record has `error_reason=missing_target_objects`. These records indicate that a target object was not available in the upstream detection/segmentation output.
+- `geometry_available_candidates`: the target objects were available to the baseline. These records are only candidates, not guaranteed clean examples, because the mask and relative depth still require visual review.
+- `manual_review_pending`: the number of `geometry_available_candidates` records that still need mask/depth review.
+
+The CSV contains one row per question, including `question_id`, image, target objects, automatic split, prediction, correctness, error reason, and missing target objects. Review the corresponding files under:
+
+```text
+outputs/visualizations/masks/
+outputs/depth/*_preview.jpg
+```
+
+before treating a candidate as a final evaluation example.
+
 Run tests:
 
 ```powershell
@@ -532,7 +570,7 @@ Metrics:
 
 ## GPU Plan
 
-Your RTX 4060 8GB is enough if the pipeline is staged:
+RTX 4060 8GB is enough if the pipeline is staged:
 
 1. detection -> save JSON
 2. segmentation -> save masks
