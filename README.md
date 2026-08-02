@@ -1,57 +1,71 @@
 # GeoVLM-SceneReasoner
 
-**GeoVLM-SceneReasoner: Geometry-Aware Visual Reasoning for Vision-Language Models**
+**Geometry-Aware Visual Reasoning for Vision-Language Models**
 
-This project asks whether VLMs are reliable on real-image spatial reasoning, and whether explicit object-level geometry can improve their answers.
+GeoVLM-SceneReasoner is a lightweight research pipeline for evaluating whether explicit object-level geometry can improve visual spatial reasoning in vision-language models.
 
-Core question:
+The project focuses on real-image questions such as:
 
-```text
-Can detection, segmentation, and depth-derived object geometry improve VLM reasoning about spatial relations, distance, occlusion, support, and physical size?
-```
+- Which object is closer to the camera?
+- Is one object left or right of another object?
+- Which object is most likely on the table?
+- Which object appears physically larger, not just larger in image area?
+
+The repository is designed for small-scale experiments. It does not train a new VLM. Instead, it builds a staged perception and reasoning pipeline that can compare image-only VLM answers against geometry-aware alternatives.
 
 ## Motivation
 
-Recent VLM reasoning benchmarks argue that strong multimodal models still struggle with genuinely visual reasoning. EasyARC focuses on true visual reasoning, VisuLogic evaluates vision-centric reasoning categories such as spatial relations and attribute comparison, and VLM2-Bench provides a larger VQA-style reference dataset.
+Recent multimodal reasoning benchmarks show that strong VLMs can still fail on genuinely visual reasoning, especially spatial relations, object grounding, occlusion, and physical plausibility. GeoVLM-SceneReasoner studies a practical question:
 
-This repo does not try to train a new model. It builds a small benchmark and a staged inference pipeline:
+```text
+Can detection, segmentation, and monocular depth provide useful geometry signals for VLM spatial reasoning?
+```
+
+The project also separates two failure modes that are often mixed together:
+
+- **Perception failure:** the pipeline misses, mislabels, or poorly segments the target object.
+- **Reasoning failure:** the relevant objects and geometry are available, but the reasoning answer is still wrong.
+
+This distinction is important when evaluating whether geometry actually helps VLM reasoning.
+
+## Pipeline
 
 ```text
 image
 -> object detection
+-> detection normalization
 -> SAM2 segmentation
--> Depth Anything V2 depth estimation
--> object-level spatial representation
--> VLM / LLM reasoning
--> pure VLM vs geometry-aware comparison
+-> Depth Anything V2 relative depth estimation
+-> object-level geometry extraction
+-> reasoning prompt generation
+-> geometry-only baseline / VLM comparison
+-> evaluation split and failure analysis
 ```
 
-## Current Stage
+The current implementation provides the full preprocessing and geometry-baseline path. VLM API or local VLM inference is planned but not included yet.
 
-Current stage: real-image benchmark setup, object detection, detection normalization, SAM2 segmentation, review visualizations, Depth Anything V2 depth estimation, object-level geometry extraction, reasoning prompt generation, a geometry-only rule baseline, pipeline failure reporting, and evaluation split generation.
+## Features
 
-Included:
+| Component | Status |
+|---|---|
+| Dataset structure and validation | Implemented |
+| Multi-view image renaming | Implemented |
+| Question scaffold generation | Implemented |
+| YOLO object detection | Implemented |
+| Detection visualization | Implemented |
+| Detection label normalization | Implemented |
+| SAM2 segmentation from detection boxes | Implemented |
+| Mask visualization | Implemented |
+| Depth Anything V2 relative depth estimation | Implemented |
+| Object-level geometry extraction | Implemented |
+| Pure VLM / Geometry-only / GeoVLM prompt generation | Implemented |
+| Geometry-only rule baseline | Implemented |
+| Pipeline failure report | Implemented |
+| Evaluation split generation | Implemented |
+| VLM inference runner | Planned |
+| Final comparison tables | Planned |
 
-- Project identity, dataset layout, benchmark question schema, and validation scripts.
-- Multi-view image renaming.
-- Question scaffold generation for same-scene multi-view captures.
-- YOLO detection script.
-- Detection normalization for common label corrections.
-- SAM2 segmentation from normalized detections.
-- Detection and mask visualization scripts for manual review.
-- Depth Anything V2 relative depth estimation.
-- Object-level geometry extraction from masks and depth maps.
-- Prompt generation for Pure VLM, Geometry-only LLM, and GeoVLM comparisons.
-- Geometry-only rule baseline with accuracy and coverage summary.
-- Failure report generation for missing target objects.
-- Evaluation split generation for separating upstream pipeline failures from geometry-available candidates.
-
-Not included yet:
-
-- VLM API or local VLM inference.
-- Full comparison tables across Pure VLM, Geometry-only LLM, and GeoVLM.
-
-## Setup
+## Installation
 
 Use Python 3.10 or newer. A conda environment is recommended.
 
@@ -59,20 +73,61 @@ Use Python 3.10 or newer. A conda environment is recommended.
 python -m pip install -r requirements.txt
 ```
 
-Stage 1 is CPU-only.
+CUDA is optional but recommended for segmentation and depth estimation. The pipeline is staged so that detection, segmentation, depth, geometry, and reasoning can be run separately.
 
-## Directory Layout
+## Data Preparation
+
+Place images in:
 
 ```text
-configs/
-  pipeline.example.json
-  geometry_schema.example.json
-data/
-  images/
-  annotations.json
-  question_templates.example.json
-  questions.example.json
-  questions.json
+data/images/
+```
+
+Recommended naming:
+
+```text
+scene_0001_view_00.jpg
+scene_0001_view_01.jpg
+scene_0002_view_00.jpg
+```
+
+For local experiments, 30-50 real desktop or indoor images are enough. Public releases should not include private photos unless they have been reviewed for privacy.
+
+More details are in [docs/data_collection.md](docs/data_collection.md).
+
+## Quick Start
+
+Validate the dataset and questions:
+
+```powershell
+python scripts/00_check_dataset.py
+python scripts/01_validate_questions.py --questions data/questions.json
+```
+
+Run the staged pipeline:
+
+```powershell
+python scripts/04_detect_objects.py --model yolo11n.pt --device cuda --overwrite
+python scripts/06_normalize_detections.py --overwrite
+python scripts/07_segment_objects.py --model sam2_t.pt --device cuda --overwrite
+python scripts/08_visualize_masks.py --overwrite
+python scripts/09_estimate_depth.py --device cuda --overwrite
+python scripts/10_extract_geometry.py --overwrite
+python scripts/11_build_reasoning_prompts.py --overwrite
+python scripts/12_run_geometry_rule_baseline.py --overwrite
+python scripts/13_build_failure_report.py --overwrite
+python scripts/14_build_evaluation_splits.py --overwrite
+```
+
+If CUDA is unavailable, use `--device cpu` for the detection, segmentation, and depth scripts.
+
+Detailed script documentation is in [docs/pipeline.md](docs/pipeline.md).
+
+## Outputs
+
+Generated outputs are written under:
+
+```text
 outputs/
   detections/
   detections_normalized/
@@ -82,506 +137,72 @@ outputs/
   reasoning/
   evaluations/
   visualizations/
-scripts/
-  00_check_dataset.py
-  01_validate_questions.py
-  02_rename_images.py
-  03_scaffold_questions.py
-  04_detect_objects.py
-  05_visualize_detections.py
-  06_normalize_detections.py
-  07_segment_objects.py
-  08_visualize_masks.py
-  09_estimate_depth.py
-  10_extract_geometry.py
-  11_build_reasoning_prompts.py
-  12_run_geometry_rule_baseline.py
-  13_build_failure_report.py
-  14_build_evaluation_splits.py
-report/
-  project_note.md
-  roadmap.md
-tests/
 ```
 
-Raw images, generated outputs, model weights, local environments, and `docs/` planning artifacts are ignored by Git.
+These files are ignored by Git because they may contain local images, generated masks, depth maps, and experiment results.
 
-## Data Collection
+## Evaluation
 
-Place real images in:
+The intended comparison is:
+
+| Track | Input |
+|---|---|
+| Pure VLM | image + question |
+| Geometry-only LLM | object-level geometry + question |
+| GeoVLM | image + object-level geometry + question |
+
+The current implemented baseline is a transparent geometry-only rule system. It reports:
+
+- end-to-end accuracy
+- answered accuracy
+- coverage
+- unknown rate
+- missing-target failure counts
+
+The evaluation split script separates records into:
+
+- `pipeline_failure`: target objects are missing from upstream perception output.
+- `geometry_available_candidates`: target objects are available, but masks and depth still need manual review.
+
+More details are in [docs/evaluation.md](docs/evaluation.md).
+
+## Limitations
+
+This project uses existing perception models and does not guarantee perfect geometry.
+
+- YOLO may miss or misclassify objects.
+- SAM2 masks are prompted by detection boxes, so segmentation can inherit detection errors.
+- Depth Anything V2 provides monocular relative depth, not metric 3D distance.
+- Image-space size is not the same as real physical size.
+- Geometry-available examples still require manual mask and depth review before final evaluation.
+
+These limitations are part of the research question: explicit geometry can help only when the perception signals are good enough, and the pipeline should make perception failures visible instead of hiding them inside a single accuracy number.
+
+## Repository Layout
 
 ```text
-data/images/
+configs/       Example pipeline and geometry configuration files
+data/          Question schemas and local image directory
+docs/          Public project documentation
+outputs/       Generated artifacts, ignored by Git
+scripts/       Pipeline scripts
+tests/         Unit tests
 ```
 
-Recommended names:
+## Testing
 
-```text
-scene_0001.jpg
-scene_0002.jpg
-scene_0003.jpg
-```
-
-For an MVP, use 30-50 real images. Desktop scenes are enough. Each image should contain 3-6 common objects such as a cup, mouse, book, bottle, keyboard, phone, pen, laptop, or notebook.
-
-The first version uses image-space relations and relative depth:
-
-- left/right from object centers
-- closer/farther from relative depth
-- larger/smaller from mask area and depth cues
-- possible occlusion from mask/bbox overlap and depth ordering
-
-## Benchmark Questions
-
-Start from:
-
-```text
-data/questions.example.json
-```
-
-For a single image or a small manual benchmark, copy it to:
-
-```text
-data/questions.json
-```
-
-For a same-scene multi-view capture, edit:
-
-```text
-data/question_templates.example.json
-```
-
-Then expand the templates across every image view:
-
-```powershell
-python scripts/03_scaffold_questions.py
-```
-
-This writes:
-
-```text
-data/questions.draft.json
-```
-
-Review the object names, answers, and ambiguous views before saving the final benchmark as `data/questions.json`.
-
-Question types:
-
-- `closer_farther`
-- `left_right`
-- `front_back`
-- `occlusion`
-- `support_relation`
-- `physical_size`
-
-Example:
-
-```json
-{
-  "question_id": "scene_0001_q001",
-  "image": "scene_0001.jpg",
-  "question": "Which object is closer to the camera, the cup or the laptop?",
-  "type": "closer_farther",
-  "target_objects": ["cup", "laptop"],
-  "answer": "cup",
-  "evaluation": {
-    "metric": "exact_match",
-    "acceptable_answers": ["cup"]
-  }
-}
-```
-
-## Validation
-
-Check dataset status:
-
-```powershell
-python scripts/00_check_dataset.py
-```
-
-Validate questions:
-
-```powershell
-python scripts/01_validate_questions.py --questions data/questions.example.json
-python scripts/01_validate_questions.py --questions data/questions.draft.json
-python scripts/01_validate_questions.py --questions data/questions.json
-```
-
-## Object Detection
-
-Run a dry run first:
-
-```powershell
-python scripts/04_detect_objects.py --dry-run --limit 3
-```
-
-Run YOLO detection:
-
-```powershell
-python scripts/04_detect_objects.py --model yolo11n.pt --device cuda --overwrite
-```
-
-If CUDA is unavailable, use CPU:
-
-```powershell
-python scripts/04_detect_objects.py --model yolo11n.pt --device cpu --overwrite
-```
-
-Detection JSON files are written to:
-
-```text
-outputs/detections/
-```
-
-Visualize detection boxes for manual review:
-
-```powershell
-python scripts/05_visualize_detections.py --overwrite
-```
-
-Visualization images are written to:
-
-```text
-outputs/visualizations/detections/
-```
-
-Review these images before running segmentation. Low-confidence duplicate boxes or wrong labels should be corrected or filtered before they are used as SAM2 prompts.
-
-Normalize labels after visual review:
-
-```powershell
-python scripts/06_normalize_detections.py --overwrite
-```
-
-This reads:
-
-```text
-outputs/detections/
-configs/detection_corrections.example.json
-```
-
-and writes:
-
-```text
-outputs/detections_normalized/
-```
-
-The raw YOLO outputs stay unchanged. Normalized detections preserve the original label in `raw_label`, for example when a closed laptop is detected as `book` and normalized to `laptop`.
-
-## Object Segmentation
-
-Run a dry run first:
-
-```powershell
-python scripts/07_segment_objects.py --dry-run --limit 3
-```
-
-Run SAM2 segmentation from normalized detections:
-
-```powershell
-python scripts/07_segment_objects.py --model sam2_t.pt --device cpu --overwrite
-```
-
-If CUDA is available:
-
-```powershell
-python scripts/07_segment_objects.py --model sam2_t.pt --device cuda --overwrite
-```
-
-This reads:
-
-```text
-data/images/
-outputs/detections_normalized/
-```
-
-and writes:
-
-```text
-outputs/masks/<image_stem>/<object_id>.png
-outputs/masks/<image_stem>/segments.json
-```
-
-Each mask PNG is a binary object mask. Each `segments.json` file preserves the object label, bbox, confidence, mask path, and mask area.
-
-Visualize SAM2 masks for manual review:
-
-```powershell
-python scripts/08_visualize_masks.py --overwrite
-```
-
-This reads:
-
-```text
-data/images/
-outputs/masks/
-```
-
-and writes:
-
-```text
-outputs/visualizations/masks/
-```
-
-Each visualization overlays the binary masks on the original image and labels each object with `object_id`, normalized label, and mask area in pixels. Review these images before running depth or geometry extraction, because geometry quality depends on whether the mask actually covers the intended object.
-
-## Depth Estimation
-
-Run a dry run first:
-
-```powershell
-python scripts/09_estimate_depth.py --dry-run --limit 3
-```
-
-Run Depth Anything V2 on CPU:
-
-```powershell
-python scripts/09_estimate_depth.py --device cpu --overwrite
-```
-
-If CUDA is available:
-
-```powershell
-python scripts/09_estimate_depth.py --device cuda --overwrite
-```
-
-By default this uses:
-
-```text
-depth-anything/Depth-Anything-V2-Small-hf
-```
-
-This reads:
-
-```text
-data/images/
-```
-
-and writes:
-
-```text
-outputs/depth/<image_stem>.npy
-outputs/depth/<image_stem>_preview.jpg
-outputs/depth/<image_stem>.json
-```
-
-The `.npy` file stores the raw relative depth map as `float32`. The `_preview.jpg` file is only for visual review. The `.json` file records the image name, model name, output paths, depth shape, and depth statistics. Depth Anything V2 produces monocular relative depth, so these values should be used for ranking and object-level comparison, not as metric centimeters or meters.
-
-## Geometry Extraction
-
-Run a dry run first:
-
-```powershell
-python scripts/10_extract_geometry.py --dry-run --limit 3
-```
-
-Extract object-level geometry:
-
-```powershell
-python scripts/10_extract_geometry.py --overwrite
-```
-
-This reads:
-
-```text
-outputs/masks/<image_stem>/segments.json
-outputs/masks/<image_stem>/<object_id>.png
-outputs/depth/<image_stem>.npy
-```
-
-and writes:
-
-```text
-outputs/geometry/<image_stem>.json
-```
-
-Each geometry JSON contains:
-
-- object centers from bbox and mask centroid
-- mask bounds and mask area fraction
-- per-object relative depth statistics inside the mask
-- coarse position tags such as `left`, `center`, `right`, `top`, `middle`, `bottom`
-- depth-order hints such as `near`, `middle`, `far`
-- pairwise relations such as `left_of`, `right_of`, `above`, `below`, `closer_than`, `farther_than`, and `similar_depth`
-
-By default the script assumes higher Depth Anything V2 values mean closer objects and records this as:
-
-```text
-higher_relative_depth_is_closer
-```
-
-If manual review shows the opposite for your environment, rerun with:
-
-```powershell
-python scripts/10_extract_geometry.py --lower-depth-is-closer --overwrite
-```
-
-## Reasoning Prompts
-
-Build prompt records for the three-way comparison:
-
-```powershell
-python scripts/11_build_reasoning_prompts.py --overwrite
-```
-
-This reads:
-
-```text
-data/questions.json
-outputs/geometry/<image_stem>.json
-```
-
-and writes:
-
-```text
-outputs/reasoning/prompts.jsonl
-```
-
-Each JSONL record contains:
-
-- benchmark metadata: `question_id`, `image`, `question`, `type`, `target_objects`, `answer`, and `acceptable_answers`
-- `pure_vlm_prompt`: image-only prompt for a VLM
-- `geometry_llm_prompt`: text-only prompt using object-level geometry
-- `geovlm_prompt`: image plus geometry prompt for a VLM
-- `missing_target_objects`: target labels that were not detected in the geometry file
-
-The answer is stored as metadata for evaluation. It is not inserted into the prompt text.
-
-## Geometry Rule Baseline
-
-Run the geometry-only rule baseline:
-
-```powershell
-python scripts/12_run_geometry_rule_baseline.py --overwrite
-```
-
-This reads:
-
-```text
-outputs/reasoning/prompts.jsonl
-outputs/geometry/<image_stem>.json
-```
-
-and writes:
-
-```text
-outputs/reasoning/geometry_rule_baseline.jsonl
-outputs/evaluations/geometry_rule_baseline_summary.json
-```
-
-The baseline uses simple transparent rules:
-
-- `closer_farther`: pairwise depth relation first, then median relative depth
-- `physical_size`: larger mask area fraction
-- `support_relation`: target object existence plus a simple position/depth/area heuristic
-
-Each result records `prediction`, `source`, `confidence`, `correct`, and `error_reason`. Questions with missing target objects are answered as `unknown` and counted separately through `error_reason=missing_target_objects`, because those are upstream detection/segmentation failures rather than pure reasoning failures.
-
-The summary reports:
-
-- `end_to_end_accuracy`: correct / total questions
-- `answered_accuracy`: correct / answered questions
-- `coverage`: answered / total questions
-- `unknown_rate`: unknown / total questions
-- `accuracy`: compatibility alias for `end_to_end_accuracy`
-
-## Failure Report
-
-Build a report for upstream pipeline failures:
-
-```powershell
-python scripts/13_build_failure_report.py --overwrite
-```
-
-This reads:
-
-```text
-outputs/reasoning/geometry_rule_baseline.jsonl
-```
-
-and writes:
-
-```text
-outputs/evaluations/pipeline_failure_report.json
-outputs/evaluations/pipeline_failure_report.csv
-```
-
-Use this report to identify which images and labels caused `missing_target_objects`. These cases should be reviewed separately from reasoning failures.
-
-## Evaluation Splits
-
-Build an evaluation split and a row-level review file:
-
-```powershell
-python scripts/14_build_evaluation_splits.py --overwrite
-```
-
-This reads:
-
-```text
-outputs/reasoning/geometry_rule_baseline.jsonl
-```
-
-and writes:
-
-```text
-outputs/evaluations/evaluation_splits.json
-outputs/evaluations/evaluation_review.csv
-```
-
-The script applies an automatic, conservative split:
-
-- `pipeline_failure`: the baseline record has `error_reason=missing_target_objects`. These records indicate that a target object was not available in the upstream detection/segmentation output.
-- `geometry_available_candidates`: the target objects were available to the baseline. These records are only candidates, not guaranteed clean examples, because the mask and relative depth still require visual review.
-- `manual_review_pending`: the number of `geometry_available_candidates` records that still need mask/depth review.
-
-The CSV contains one row per question, including `question_id`, image, target objects, automatic split, prediction, correctness, error reason, and missing target objects. Review the corresponding files under:
-
-```text
-outputs/visualizations/masks/
-outputs/depth/*_preview.jpg
-```
-
-before treating a candidate as a final evaluation example.
-
-Run tests:
+Run:
 
 ```powershell
 python -m pytest -q
 ```
-
-## Experimental Comparison
-
-The final benchmark should compare:
-
-- **Pure VLM:** image + question.
-- **Geometry-only LLM:** object-level geometry JSON/text + question.
-- **GeoVLM:** image + object-level geometry text + question.
-
-Metrics:
-
-- accuracy
-- closer/farther accuracy
-- left/right accuracy
-- occlusion accuracy
-- physical-size accuracy
-- reasoning consistency
-- failure case analysis
-
-## GPU Plan
-
-RTX 4060 8GB is enough if the pipeline is staged:
-
-1. detection -> save JSON
-2. segmentation -> save masks
-3. depth -> save depth maps
-4. geometry -> save object-level JSON
-5. reasoning -> save answers
-
-Use small model variants first and avoid loading YOLO, SAM2, Depth Anything, and a VLM at the same time.
 
 ## References
 
 - EasyARC: Evaluating Vision Language Models on True Visual Reasoning, arXiv:2506.11595.
 - VisuLogic: A Benchmark for Evaluating Visual Reasoning in Multi-modal Large Language Models, arXiv:2504.15279.
 - VLM2-Bench dataset: `Sterzhang/vlm2-bench` on Hugging Face.
+
+## License
+
+Add a license before publishing the repository. If you use external datasets, model checkpoints, or generated annotations, verify that their licenses allow redistribution.
