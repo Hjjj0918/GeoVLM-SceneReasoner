@@ -16,6 +16,8 @@ env/
 # Local notebooks and logs
 .ipynb_checkpoints/
 *.log
+*.aux
+*.out
 
 # Local agent planning artifacts
 docs/superpowers/
