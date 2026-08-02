@@ -205,4 +205,6 @@ python -m pytest -q
 
 ## License
 
-Add a license before publishing the repository. If you use external datasets, model checkpoints, or generated annotations, verify that their licenses allow redistribution.
+This project is released under the MIT License. See [LICENSE](LICENSE) for details.
+
+External datasets, model checkpoints, and generated annotations may have separate licenses. Verify their terms before redistributing them.
