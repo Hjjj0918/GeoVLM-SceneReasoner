@@ -62,6 +62,7 @@ The current implementation provides the full preprocessing and geometry-baseline
 | Geometry-only rule baseline | Implemented |
 | Pipeline failure report | Implemented |
 | Evaluation split generation | Implemented |
+| Manual-review clean subset generation | Implemented |
 | VLM inference runner | Planned |
 | Final comparison tables | Planned |
 
@@ -117,6 +118,7 @@ python scripts/11_build_reasoning_prompts.py --overwrite
 python scripts/12_run_geometry_rule_baseline.py --overwrite
 python scripts/13_build_failure_report.py --overwrite
 python scripts/14_build_evaluation_splits.py --overwrite
+python scripts/15_build_clean_subset.py --overwrite
 ```
 
 If CUDA is unavailable, use `--device cpu` for the detection, segmentation, and depth scripts.
@@ -163,6 +165,14 @@ The evaluation split script separates records into:
 
 - `pipeline_failure`: target objects are missing from upstream perception output.
 - `geometry_available_candidates`: target objects are available, but masks and depth still need manual review.
+
+After manually reviewing candidate rows in `outputs/evaluations/evaluation_review.csv`, build a formal clean subset:
+
+```powershell
+python scripts/15_build_clean_subset.py --overwrite
+```
+
+The clean subset includes only rows where `automatic_split=geometry_available_candidates` and `mask_ok`, `depth_ok`, and `question_valid` are all marked as `yes`.
 
 More details are in [docs/evaluation.md](docs/evaluation.md).
 

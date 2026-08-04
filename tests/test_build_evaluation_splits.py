@@ -86,6 +86,11 @@ class BuildEvaluationSplitsTest(unittest.TestCase):
         csv_text = self.review_path.read_text(encoding="utf-8")
         self.assertIn("q002", csv_text)
         self.assertIn("pipeline_failure", csv_text)
+        self.assertIn("mask_ok", csv_text)
+        self.assertIn("depth_ok", csv_text)
+        self.assertIn("question_valid", csv_text)
+        self.assertIn("final_split", csv_text)
+        self.assertIn("review_notes", csv_text)
 
     def test_write_split_files_rejects_existing_output_without_overwrite(self):
         self.write_records([])

@@ -11,6 +11,7 @@ from typing import Any
 
 REVIEW_STATUS = "geometry_available_candidates require manual mask/depth review"
 PIPELINE_FAILURE_REASON = "missing_target_objects"
+MANUAL_REVIEW_FIELDS = ["mask_ok", "depth_ok", "question_valid", "final_split", "review_notes"]
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -85,6 +86,11 @@ def review_rows(records: list[dict[str, Any]]) -> list[dict[str, str]]:
                 "correct": str(bool(record.get("correct", False))).lower(),
                 "error_reason": str(record.get("error_reason") or ""),
                 "missing_target_objects": _json_text(record.get("missing_target_objects", [])),
+                "mask_ok": "",
+                "depth_ok": "",
+                "question_valid": "",
+                "final_split": "",
+                "review_notes": "",
             }
         )
     return rows
@@ -102,6 +108,7 @@ def write_review_csv(records: list[dict[str, Any]], review_path: Path) -> None:
         "correct",
         "error_reason",
         "missing_target_objects",
+        *MANUAL_REVIEW_FIELDS,
     ]
     review_path.parent.mkdir(parents=True, exist_ok=True)
     with review_path.open("w", encoding="utf-8", newline="") as file:

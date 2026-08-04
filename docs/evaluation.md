@@ -47,6 +47,16 @@ The automatic split is conservative:
 
 `geometry_available_candidates` does not mean the sample is clean. It means the target labels exist in the object-level geometry file. The segmentation mask and relative depth estimate may still be wrong.
 
+The review CSV includes manual review columns:
+
+```text
+mask_ok
+depth_ok
+question_valid
+final_split
+review_notes
+```
+
 ## Manual Review
 
 For each candidate row in `evaluation_review.csv`, check:
@@ -65,3 +75,37 @@ A final clean subset should include only records where:
 
 This review step is necessary before making claims about VLM reasoning accuracy.
 
+## Clean Subset
+
+After manual review, run:
+
+```powershell
+python scripts/15_build_clean_subset.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/evaluations/evaluation_review.csv
+data/questions.json
+```
+
+and writes:
+
+```text
+outputs/evaluations/clean_subset.json
+outputs/evaluations/clean_subset_questions.json
+```
+
+A row is included only when:
+
+```text
+automatic_split == geometry_available_candidates
+mask_ok == yes
+depth_ok == yes
+question_valid == yes
+```
+
+Accepted yes-like values include `yes`, `y`, `true`, `1`, `ok`, `pass`, and `passed`. If `final_split` is filled with `reject`, `exclude`, `bad`, or `no`, the row is excluded even if the other fields are positive.
+
+If no rows have been manually marked yet, the clean subset will contain zero questions. That is expected and means the benchmark is still pending human review.

@@ -229,3 +229,29 @@ outputs/evaluations/evaluation_review.csv
 
 The split separates upstream pipeline failures from geometry-available candidates. Candidate records still require manual mask and depth review before final evaluation.
 
+## 13. Clean Subset Generation
+
+After reviewing `outputs/evaluations/evaluation_review.csv`, fill these columns for each geometry-available candidate:
+
+```text
+mask_ok
+depth_ok
+question_valid
+final_split
+review_notes
+```
+
+Then run:
+
+```powershell
+python scripts/15_build_clean_subset.py --overwrite
+```
+
+Outputs:
+
+```text
+outputs/evaluations/clean_subset.json
+outputs/evaluations/clean_subset_questions.json
+```
+
+Only rows with `automatic_split=geometry_available_candidates` and positive manual review values for `mask_ok`, `depth_ok`, and `question_valid` enter the clean subset. This clean subset should be used for final Pure VLM, Geometry-only LLM, and GeoVLM comparison.
