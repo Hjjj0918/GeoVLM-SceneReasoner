@@ -4,6 +4,7 @@ Usage: python -m pytest tests/test_run_vlm_inference.py -q
 """
 
 import importlib.util
+import io
 import json
 import unittest
 from pathlib import Path
@@ -117,6 +118,30 @@ class RunVlmInferenceTest(unittest.TestCase):
         summary = json.loads(self.summary_path.read_text(encoding="utf-8"))
         self.assertEqual(summary["total"], 1)
         self.assertEqual(summary["correct"], 1)
+
+    def test_run_inference_prints_progress_after_each_question(self):
+        self.write_inputs()
+        provider = FakeProvider("The laptop is closer.")
+        progress_stream = io.StringIO()
+
+        self.module.run_inference_file(
+            prompt_path=self.prompt_path,
+            clean_subset_path=self.clean_subset_path,
+            images_dir=self.images_dir,
+            output_path=self.output_path,
+            summary_path=self.summary_path,
+            track="pure_vlm",
+            provider=provider,
+            overwrite=False,
+            progress_stream=progress_stream,
+        )
+
+        output = progress_stream.getvalue()
+        self.assertIn("[1/1]", output)
+        self.assertIn("q001", output)
+        self.assertIn("closer_farther", output)
+        self.assertIn("-> laptop", output)
+        self.assertIn("correct=True", output)
 
     def test_run_inference_rejects_existing_outputs_without_overwrite(self):
         self.write_inputs()

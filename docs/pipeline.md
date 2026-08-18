@@ -305,6 +305,14 @@ python scripts/16_run_vlm_inference.py --track geometry_only --provider openai_c
 python scripts/16_run_vlm_inference.py --track geovlm --provider openai_compatible --model your-vision-model --api-base https://your-endpoint/v1 --overwrite
 ```
 
+Progress is printed after every completed question by default:
+
+```text
+[3/81] scene_0001_view_01_q003 physical_size -> laptop correct=True latency=2.66s
+```
+
+Use `--no-progress` when running in a scripted or silent environment.
+
 The runner reads:
 
 ```text

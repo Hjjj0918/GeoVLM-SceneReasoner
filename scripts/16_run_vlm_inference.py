@@ -14,6 +14,7 @@ import json
 import mimetypes
 import os
 import re
+import sys
 import time
 import urllib.error
 import urllib.request
@@ -241,6 +242,7 @@ def run_inference_file(
     provider: Any,
     overwrite: bool,
     limit: int | None = None,
+    progress_stream: Any | None = None,
 ) -> int:
     existing = [path for path in (output_path, summary_path) if path.exists()]
     if existing and not overwrite:
@@ -273,6 +275,7 @@ def run_inference_file(
         started = time.perf_counter()
         raw_response = ""
         error = None
+        error_type = None
         try:
             raw_response = provider.answer(prompt=prompt, image_path=image_path)
             target_objects = record.get("target_objects", [])
@@ -283,6 +286,7 @@ def run_inference_file(
         except Exception as exception:
             prediction = "unknown"
             correct = False
+            error_type = type(exception).__name__
             error = f"{type(exception).__name__}: {exception}"
 
         results.append(
@@ -299,6 +303,15 @@ def run_inference_file(
                 "latency_seconds": round(time.perf_counter() - started, 6),
             }
         )
+        if progress_stream is not None:
+            progress = (
+                f"[{len(results)}/{len(prompt_records)}] "
+                f"{record.get('question_id')} {record.get('type')} -> {prediction} "
+                f"correct={correct} latency={results[-1]['latency_seconds']:.2f}s"
+            )
+            if error_type:
+                progress += f" error={error_type}"
+            print(progress, file=progress_stream, flush=True)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", encoding="utf-8", newline="\n") as file:
@@ -351,6 +364,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mock-response", default="unknown")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--progress", dest="progress", action="store_true", default=True)
+    parser.add_argument("--no-progress", dest="progress", action="store_false")
     return parser.parse_args()
 
 
@@ -369,6 +384,7 @@ def main() -> int:
             provider=build_provider(args),
             overwrite=args.overwrite,
             limit=args.limit,
+            progress_stream=sys.stdout if args.progress else None,
         )
     except (FileExistsError, FileNotFoundError, ValueError, RuntimeError) as error:
         print(error)

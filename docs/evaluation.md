@@ -162,6 +162,9 @@ $env:OPENAI_API_KEY = "your-key"
 python scripts/16_run_vlm_inference.py --track pure_vlm --provider openai_compatible --model your-vision-model --api-base https://your-endpoint/v1 --overwrite
 ```
 
+The runner prints one progress line after each question by default. Add
+`--no-progress` to suppress those lines.
+
 The three tracks differ only in their inputs:
 
 ```text
