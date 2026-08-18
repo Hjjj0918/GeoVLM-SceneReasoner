@@ -42,7 +42,7 @@ image
 -> evaluation split and failure analysis
 ```
 
-The current implementation provides the full preprocessing and geometry-baseline path. VLM API or local VLM inference is planned but not included yet.
+The current implementation provides the full preprocessing, geometry-baseline, and model-agnostic VLM inference path.
 
 ## Features
 
@@ -63,7 +63,7 @@ The current implementation provides the full preprocessing and geometry-baseline
 | Pipeline failure report | Implemented |
 | Evaluation split generation | Implemented |
 | Manual-review clean subset generation | Implemented |
-| VLM inference runner | Planned |
+| Model-agnostic VLM inference runner | Implemented |
 | Final comparison tables | Planned |
 
 ## Installation

@@ -272,3 +272,52 @@ outputs/evaluations/geometry_rule_baseline_clean_summary.json
 ```
 
 This gives a fairer geometry-only baseline by excluding upstream missing-target failures and using the same question set that later VLM and GeoVLM runs should use.
+
+## 15. VLM Inference Runner
+
+The model-agnostic inference runner supports three tracks:
+
+```text
+pure_vlm
+geometry_only
+geovlm
+```
+
+Run a local smoke test without network access:
+
+```powershell
+python scripts/16_run_vlm_inference.py --track pure_vlm --provider mock --mock-response laptop --limit 3 --overwrite
+```
+
+The mock provider only tests data flow and answer parsing. Its results must not be used as model evaluation results.
+
+For a real API or local service that exposes an OpenAI-compatible chat-completions endpoint:
+
+```powershell
+$env:OPENAI_API_KEY = "your-key"
+python scripts/16_run_vlm_inference.py --track pure_vlm --provider openai_compatible --model your-vision-model --api-base https://your-endpoint/v1 --overwrite
+```
+
+Run the other tracks with the same clean subset:
+
+```powershell
+python scripts/16_run_vlm_inference.py --track geometry_only --provider openai_compatible --model your-text-model --api-base https://your-endpoint/v1 --overwrite
+python scripts/16_run_vlm_inference.py --track geovlm --provider openai_compatible --model your-vision-model --api-base https://your-endpoint/v1 --overwrite
+```
+
+The runner reads:
+
+```text
+outputs/reasoning/prompts.jsonl
+outputs/evaluations/clean_subset.json
+data/images/
+```
+
+and writes:
+
+```text
+outputs/inference/<track>.jsonl
+outputs/evaluations/<track>_summary.json
+```
+
+Each inference record stores the raw model response, normalized prediction, correctness, model name, track, latency, and any provider error.

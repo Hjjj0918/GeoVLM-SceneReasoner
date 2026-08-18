@@ -10,7 +10,7 @@ GeoVLM-SceneReasoner is designed to compare image-only reasoning with geometry-a
 | Geometry-only LLM | object-level geometry + question | Measures whether explicit geometry is enough for the question. |
 | GeoVLM | image + object-level geometry + question | Measures whether geometry helps a VLM answer more reliably. |
 
-The current repository implements prompt generation and a geometry-only rule baseline. VLM inference is planned.
+The current repository implements prompt generation, a geometry-only rule baseline, and a model-agnostic VLM inference runner.
 
 ## Metrics
 
@@ -126,3 +126,48 @@ outputs/evaluations/geometry_rule_baseline_clean_summary.json
 ```
 
 Use this clean-only summary when comparing against Pure VLM and GeoVLM results. The full 111-question summary is still useful for end-to-end pipeline analysis, but it includes missing-target perception failures.
+
+## VLM Inference
+
+The model-agnostic runner is:
+
+```text
+scripts/16_run_vlm_inference.py
+```
+
+It supports:
+
+```text
+pure_vlm
+geometry_only
+geovlm
+```
+
+All tracks are filtered by the question IDs in:
+
+```text
+outputs/evaluations/clean_subset.json
+```
+
+Run a no-network smoke test:
+
+```powershell
+python scripts/16_run_vlm_inference.py --track pure_vlm --provider mock --mock-response laptop --limit 3 --overwrite
+```
+
+For actual inference, use an OpenAI-compatible endpoint:
+
+```powershell
+$env:OPENAI_API_KEY = "your-key"
+python scripts/16_run_vlm_inference.py --track pure_vlm --provider openai_compatible --model your-vision-model --api-base https://your-endpoint/v1 --overwrite
+```
+
+The three tracks differ only in their inputs:
+
+```text
+Pure VLM: image + pure_vlm_prompt
+Geometry-only LLM: geometry_llm_prompt
+GeoVLM: image + geovlm_prompt
+```
+
+The runner saves both `raw_response` and normalized `prediction`, so model wording can be audited after evaluation. Mock results are for pipeline testing only and must not be reported as VLM accuracy.
