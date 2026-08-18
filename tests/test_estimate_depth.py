@@ -1,3 +1,8 @@
+"""Test Depth Anything V2 depth output writing and estimator handling.
+
+Usage: python -m pytest tests/test_estimate_depth.py -q
+"""
+
 import importlib.util
 import json
 import sys

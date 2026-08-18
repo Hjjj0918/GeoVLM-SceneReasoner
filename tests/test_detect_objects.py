@@ -1,3 +1,8 @@
+"""Test YOLO detection output formatting and detection script control flow.
+
+Usage: python -m pytest tests/test_detect_objects.py -q
+"""
+
 import importlib.util
 import json
 import os

@@ -1,3 +1,8 @@
+"""Test dataset status checks for images, questions, and output folders.
+
+Usage: python -m pytest tests/test_check_dataset.py -q
+"""
+
 import importlib.util
 import unittest
 from pathlib import Path

@@ -1,4 +1,7 @@
-"""Run a simple geometry-only rule baseline over GeoVLM prompt records."""
+"""Run a simple geometry-only rule baseline over GeoVLM prompt records.
+
+Usage: python scripts/12_run_geometry_rule_baseline.py --overwrite
+"""
 
 from __future__ import annotations
 
@@ -14,6 +17,16 @@ SUPPORTED_TYPES = {"closer_farther", "physical_size", "support_relation"}
 
 def load_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_question_ids(path: Path | None) -> set[str] | None:
+    if path is None:
+        return None
+    payload = load_json(path)
+    question_ids = payload.get("question_ids", [])
+    if not isinstance(question_ids, list):
+        raise ValueError(f"Question ID file must contain a list field named 'question_ids': {path}")
+    return {str(question_id) for question_id in question_ids}
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -245,12 +258,20 @@ def summarize_results(results: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def run_baseline_file(prompt_path: Path, output_path: Path, summary_path: Path, overwrite: bool) -> int:
+def run_baseline_file(
+    prompt_path: Path,
+    output_path: Path,
+    summary_path: Path,
+    overwrite: bool,
+    question_ids: set[str] | None = None,
+) -> int:
     existing = [path for path in (output_path, summary_path) if path.exists()]
     if existing and not overwrite:
         raise FileExistsError(f"Baseline output already exists: {existing[0]}")
 
     prompt_records = load_jsonl(prompt_path)
+    if question_ids is not None:
+        prompt_records = [record for record in prompt_records if str(record.get("question_id", "")) in question_ids]
     results = []
     for record in prompt_records:
         geometry_path = Path(str(record.get("geometry_path", "")))
@@ -277,6 +298,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--prompts", type=Path, default=Path("outputs/reasoning/prompts.jsonl"))
     parser.add_argument("--output", type=Path, default=Path("outputs/reasoning/geometry_rule_baseline.jsonl"))
     parser.add_argument("--summary", type=Path, default=Path("outputs/evaluations/geometry_rule_baseline_summary.json"))
+    parser.add_argument(
+        "--question-ids",
+        type=Path,
+        default=None,
+        help="Optional JSON file with a question_ids list, such as outputs/evaluations/clean_subset.json.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing baseline outputs.")
     return parser.parse_args()
 
@@ -289,6 +316,7 @@ def main() -> int:
             output_path=args.output,
             summary_path=args.summary,
             overwrite=args.overwrite,
+            question_ids=load_question_ids(args.question_ids),
         )
     except (FileExistsError, FileNotFoundError, ValueError) as error:
         print(error)

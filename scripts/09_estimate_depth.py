@@ -1,4 +1,7 @@
-"""Estimate relative depth maps with Depth Anything V2."""
+"""Estimate relative depth maps with Depth Anything V2.
+
+Usage: python scripts/09_estimate_depth.py --device cuda --overwrite
+"""
 
 from __future__ import annotations
 

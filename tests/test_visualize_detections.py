@@ -1,3 +1,8 @@
+"""Test detection visualization image generation for manual review.
+
+Usage: python -m pytest tests/test_visualize_detections.py -q
+"""
+
 import importlib.util
 import json
 import unittest

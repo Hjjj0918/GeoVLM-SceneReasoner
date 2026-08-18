@@ -1,3 +1,8 @@
+"""Test expansion of scene-level question templates across image views.
+
+Usage: python -m pytest tests/test_scaffold_questions.py -q
+"""
+
 import importlib.util
 import json
 import unittest

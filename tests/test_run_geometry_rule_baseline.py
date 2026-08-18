@@ -1,3 +1,8 @@
+"""Test the geometry-only rule baseline and clean-subset question filtering.
+
+Usage: python -m pytest tests/test_run_geometry_rule_baseline.py -q
+"""
+
 import importlib.util
 import json
 import unittest
@@ -156,6 +161,31 @@ class GeometryRuleBaselineTest(unittest.TestCase):
         self.assertEqual(summary["unknown_rate"], 0.333333)
         self.assertEqual(summary["accuracy"], summary["end_to_end_accuracy"])
         self.assertEqual(summary["by_type"]["closer_farther"]["answered_accuracy"], 1.0)
+
+    def test_run_baseline_file_filters_to_question_ids(self):
+        self.write_geometry()
+        closer_record = self.prompt_record("closer_farther", ["laptop", "mouse"])
+        closer_record["question_id"] = "q_keep"
+        size_record = self.prompt_record("physical_size", ["laptop", "mouse"])
+        size_record["question_id"] = "q_skip"
+        self.write_prompts([closer_record, size_record])
+
+        count = self.module.run_baseline_file(
+            prompt_path=self.prompt_path,
+            output_path=self.output_path,
+            summary_path=self.summary_path,
+            overwrite=False,
+            question_ids={"q_keep"},
+        )
+
+        self.assertEqual(count, 1)
+        result_lines = self.output_path.read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(result_lines), 1)
+        result = json.loads(result_lines[0])
+        self.assertEqual(result["question_id"], "q_keep")
+        summary = json.loads(self.summary_path.read_text(encoding="utf-8"))
+        self.assertEqual(summary["total"], 1)
+        self.assertEqual(summary["correct"], 1)
 
     def test_run_baseline_file_rejects_existing_output_without_overwrite(self):
         self.write_geometry()

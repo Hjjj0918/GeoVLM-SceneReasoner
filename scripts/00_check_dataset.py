@@ -1,4 +1,7 @@
-"""Check GeoVLM-SceneReasoner dataset files before running the pipeline."""
+"""Check GeoVLM-SceneReasoner dataset files before running the pipeline.
+
+Usage: python scripts/00_check_dataset.py
+"""
 
 from __future__ import annotations
 

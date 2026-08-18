@@ -1,4 +1,7 @@
-"""Extract object-level geometry from masks and relative depth maps."""
+"""Extract object-level geometry from masks and relative depth maps.
+
+Usage: python scripts/10_extract_geometry.py --overwrite
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,7 @@
-"""Validate GeoVLM-SceneReasoner benchmark question files."""
+"""Validate GeoVLM-SceneReasoner benchmark question files.
+
+Usage: python scripts/01_validate_questions.py --questions data/questions.json
+"""
 
 from __future__ import annotations
 

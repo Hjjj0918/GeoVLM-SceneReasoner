@@ -1,4 +1,7 @@
-"""Draw SAM2 mask overlays for manual review."""
+"""Draw SAM2 mask overlays for manual review.
+
+Usage: python scripts/08_visualize_masks.py --overwrite
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,7 @@
-"""Run YOLO object detection and save per-image GeoVLM detection JSON."""
+"""Run YOLO object detection and save per-image GeoVLM detection JSON.
+
+Usage: python scripts/04_detect_objects.py --model yolo11n.pt --device cuda --overwrite
+"""
 
 from __future__ import annotations
 

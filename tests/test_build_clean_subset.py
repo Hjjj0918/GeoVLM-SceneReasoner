@@ -1,3 +1,8 @@
+"""Test clean subset generation from manual evaluation review CSV files.
+
+Usage: python -m pytest tests/test_build_clean_subset.py -q
+"""
+
 import csv
 import importlib.util
 import json

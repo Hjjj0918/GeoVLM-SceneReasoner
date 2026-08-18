@@ -1,4 +1,7 @@
-"""Build a pipeline failure report from baseline results."""
+"""Build a pipeline failure report from baseline results.
+
+Usage: python scripts/13_build_failure_report.py --overwrite
+"""
 
 from __future__ import annotations
 

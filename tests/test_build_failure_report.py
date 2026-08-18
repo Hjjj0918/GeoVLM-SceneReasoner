@@ -1,3 +1,8 @@
+"""Test pipeline failure report generation from geometry baseline results.
+
+Usage: python -m pytest tests/test_build_failure_report.py -q
+"""
+
 import importlib.util
 import json
 import unittest

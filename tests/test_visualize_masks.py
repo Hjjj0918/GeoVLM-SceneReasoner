@@ -1,3 +1,8 @@
+"""Test SAM2 mask overlay visualization generation for manual review.
+
+Usage: python -m pytest tests/test_visualize_masks.py -q
+"""
+
 import importlib.util
 import json
 import os

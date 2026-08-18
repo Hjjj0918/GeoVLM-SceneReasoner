@@ -1,3 +1,8 @@
+"""Test evaluation split generation for pipeline failures and review candidates.
+
+Usage: python -m pytest tests/test_build_evaluation_splits.py -q
+"""
+
 import importlib.util
 import json
 import unittest

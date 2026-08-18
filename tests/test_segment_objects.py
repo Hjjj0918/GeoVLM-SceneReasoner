@@ -1,3 +1,8 @@
+"""Test SAM2 segmentation outputs generated from normalized detection boxes.
+
+Usage: python -m pytest tests/test_segment_objects.py -q
+"""
+
 import importlib.util
 import json
 import unittest

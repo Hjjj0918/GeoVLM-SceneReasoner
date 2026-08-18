@@ -1,4 +1,7 @@
-"""Build a clean evaluation subset from manual review decisions."""
+"""Build a clean evaluation subset from manual review decisions.
+
+Usage: python scripts/15_build_clean_subset.py --overwrite
+"""
 
 from __future__ import annotations
 

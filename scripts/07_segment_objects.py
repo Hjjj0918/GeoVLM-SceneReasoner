@@ -1,4 +1,7 @@
-"""Run SAM2 segmentation from normalized detection boxes."""
+"""Run SAM2 segmentation from normalized detection boxes.
+
+Usage: python scripts/07_segment_objects.py --model sam2_t.pt --device cuda --overwrite
+"""
 
 from __future__ import annotations
 

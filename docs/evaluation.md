@@ -109,3 +109,20 @@ question_valid == yes
 Accepted yes-like values include `yes`, `y`, `true`, `1`, `ok`, `pass`, and `passed`. If `final_split` is filled with `reject`, `exclude`, `bad`, or `no`, the row is excluded even if the other fields are positive.
 
 If no rows have been manually marked yet, the clean subset will contain zero questions. That is expected and means the benchmark is still pending human review.
+
+## Clean Geometry Baseline
+
+Run the geometry-only rule baseline on the reviewed subset:
+
+```powershell
+python scripts/12_run_geometry_rule_baseline.py --question-ids outputs/evaluations/clean_subset.json --output outputs/reasoning/geometry_rule_baseline_clean.jsonl --summary outputs/evaluations/geometry_rule_baseline_clean_summary.json --overwrite
+```
+
+This writes:
+
+```text
+outputs/reasoning/geometry_rule_baseline_clean.jsonl
+outputs/evaluations/geometry_rule_baseline_clean_summary.json
+```
+
+Use this clean-only summary when comparing against Pure VLM and GeoVLM results. The full 111-question summary is still useful for end-to-end pipeline analysis, but it includes missing-target perception failures.

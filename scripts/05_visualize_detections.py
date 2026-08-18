@@ -1,4 +1,7 @@
-"""Draw YOLO detection boxes for manual review."""
+"""Draw YOLO detection boxes for manual review.
+
+Usage: python scripts/05_visualize_detections.py --overwrite
+"""
 
 from __future__ import annotations
 

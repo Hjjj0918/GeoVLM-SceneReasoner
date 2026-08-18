@@ -255,3 +255,20 @@ outputs/evaluations/clean_subset_questions.json
 ```
 
 Only rows with `automatic_split=geometry_available_candidates` and positive manual review values for `mask_ok`, `depth_ok`, and `question_valid` enter the clean subset. This clean subset should be used for final Pure VLM, Geometry-only LLM, and GeoVLM comparison.
+
+## 14. Clean Geometry Baseline
+
+After generating the clean subset, rerun the geometry-only rule baseline only on reviewed questions:
+
+```powershell
+python scripts/12_run_geometry_rule_baseline.py --question-ids outputs/evaluations/clean_subset.json --output outputs/reasoning/geometry_rule_baseline_clean.jsonl --summary outputs/evaluations/geometry_rule_baseline_clean_summary.json --overwrite
+```
+
+Outputs:
+
+```text
+outputs/reasoning/geometry_rule_baseline_clean.jsonl
+outputs/evaluations/geometry_rule_baseline_clean_summary.json
+```
+
+This gives a fairer geometry-only baseline by excluding upstream missing-target failures and using the same question set that later VLM and GeoVLM runs should use.

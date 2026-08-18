@@ -1,3 +1,8 @@
+"""Test detection label normalization before segmentation and geometry stages.
+
+Usage: python -m pytest tests/test_normalize_detections.py -q
+"""
+
 import importlib.util
 import json
 import unittest

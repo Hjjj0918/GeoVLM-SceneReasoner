@@ -1,4 +1,7 @@
-"""Normalize detector labels before segmentation and geometry stages."""
+"""Normalize detector labels before segmentation and geometry stages.
+
+Usage: python scripts/06_normalize_detections.py --overwrite
+"""
 
 from __future__ import annotations
 

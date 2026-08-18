@@ -1,3 +1,8 @@
+"""Test benchmark question schema validation and error reporting.
+
+Usage: python -m pytest tests/test_validate_questions.py -q
+"""
+
 import importlib.util
 import json
 import unittest

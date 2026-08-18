@@ -1,4 +1,7 @@
-"""Expand scene-level question templates across GeoVLM image views."""
+"""Expand scene-level question templates across GeoVLM image views.
+
+Usage: python scripts/03_scaffold_questions.py
+"""
 
 from __future__ import annotations
 

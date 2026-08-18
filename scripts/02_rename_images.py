@@ -1,4 +1,7 @@
-"""Rename scene images into stable GeoVLM view-sequence filenames."""
+"""Rename scene images into stable GeoVLM view-sequence filenames.
+
+Usage: python scripts/02_rename_images.py
+"""
 
 from __future__ import annotations
 

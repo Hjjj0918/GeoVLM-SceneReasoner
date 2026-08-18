@@ -1,4 +1,7 @@
-"""Build reasoning prompt records from benchmark questions and geometry JSON."""
+"""Build reasoning prompt records from benchmark questions and geometry JSON.
+
+Usage: python scripts/11_build_reasoning_prompts.py --overwrite
+"""
 
 from __future__ import annotations
 

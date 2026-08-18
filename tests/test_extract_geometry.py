@@ -1,3 +1,8 @@
+"""Test object-level geometry extraction from masks and relative depth maps.
+
+Usage: python -m pytest tests/test_extract_geometry.py -q
+"""
+
 import importlib.util
 import json
 import unittest

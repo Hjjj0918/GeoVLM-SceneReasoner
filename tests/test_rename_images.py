@@ -1,3 +1,8 @@
+"""Test stable sequential renaming for images under data/images.
+
+Usage: python -m pytest tests/test_rename_images.py -q
+"""
+
 import importlib.util
 import json
 import unittest

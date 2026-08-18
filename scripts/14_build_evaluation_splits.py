@@ -1,4 +1,7 @@
-"""Build evaluation splits for geometry and upstream pipeline review."""
+"""Build evaluation splits for geometry and upstream pipeline review.
+
+Usage: python scripts/14_build_evaluation_splits.py --overwrite
+"""
 
 from __future__ import annotations
 

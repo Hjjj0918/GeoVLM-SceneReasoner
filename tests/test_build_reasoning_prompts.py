@@ -1,3 +1,8 @@
+"""Test reasoning prompt generation for Pure VLM, Geometry-only LLM, and GeoVLM.
+
+Usage: python -m pytest tests/test_build_reasoning_prompts.py -q
+"""
+
 import importlib.util
 import json
 import unittest
