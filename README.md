@@ -196,6 +196,201 @@ outputs/evaluations/track_comparison.json
 outputs/evaluations/track_disagreements.csv
 ```
 
+## Run Qwen3-VL-Flash
+
+The VLM inference runner uses an OpenAI-compatible API. The local computer runs the
+image pipeline and sends only the VLM reasoning requests to the remote API. Do not
+put your API key in source files, JSON files, notebooks, or Git commits.
+
+### 1. Set the API key
+
+In PowerShell, set the key for the current terminal session:
+
+```powershell
+$env:DASHSCOPE_API_KEY = "your-dashscope-api-key"
+```
+
+Verify that the variable exists without printing the key:
+
+```powershell
+if ([string]::IsNullOrWhiteSpace($env:DASHSCOPE_API_KEY)) {
+    "DASHSCOPE_API_KEY_NOT_SET"
+} else {
+    "DASHSCOPE_API_KEY_SET"
+}
+```
+
+If a new PowerShell window is opened, set the variable again. To save it for
+future PowerShell sessions, use Windows user environment variables instead of
+hardcoding it in this repository.
+
+### 2. Choose the DashScope endpoint
+
+Use the endpoint that matches the region where the API key was created:
+
+```text
+China mainland: https://dashscope.aliyuncs.com/compatible-mode/v1
+International:   https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+```
+
+The examples below use the China mainland endpoint. Replace
+`$QWEN_API_BASE` with the international endpoint if necessary:
+
+```powershell
+$QWEN_MODEL = "qwen3-vl-flash"
+$QWEN_API_BASE = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+```
+
+### 3. Check the clean evaluation subset
+
+The VLM tracks should use the reviewed clean subset:
+
+```powershell
+Get-Content outputs\evaluations\clean_subset.json
+```
+
+The current runner reads:
+
+```text
+outputs/reasoning/prompts.jsonl
+outputs/evaluations/clean_subset.json
+data/images/
+```
+
+If geometry or prompt code was changed, regenerate these files first:
+
+```powershell
+python scripts/10_extract_geometry.py --overwrite
+python scripts/11_build_reasoning_prompts.py --overwrite
+```
+
+### 4. Run a three-question API test
+
+Run a small test before spending API requests on the complete benchmark:
+
+```powershell
+python scripts/16_run_vlm_inference.py `
+    --track pure_vlm `
+    --provider openai_compatible `
+    --model $QWEN_MODEL `
+    --api-base $QWEN_API_BASE `
+    --api-key-env DASHSCOPE_API_KEY `
+    --limit 3 `
+    --overwrite
+```
+
+The command prints one line after each completed question:
+
+```text
+[1/3] scene_0001_view_01_q001 closer_farther -> laptop correct=True latency=8.46s
+```
+
+Check the test output:
+
+```powershell
+Get-Content outputs\inference\pure_vlm.jsonl
+Get-Content outputs\evaluations\pure_vlm_summary.json
+```
+
+Confirm that:
+
+- `"model"` is `"qwen3-vl-flash"`;
+- `"error"` is `null`;
+- `"raw_response"` contains the model response;
+- the summary contains the expected number of questions.
+
+The `--limit 3` test is a connectivity and data-flow test, not the final
+benchmark result.
+
+### 5. Run all three tracks
+
+Run all tracks with the same model and the same clean question set:
+
+```powershell
+python scripts/16_run_vlm_inference.py `
+    --track pure_vlm `
+    --provider openai_compatible `
+    --model $QWEN_MODEL `
+    --api-base $QWEN_API_BASE `
+    --api-key-env DASHSCOPE_API_KEY `
+    --overwrite
+
+python scripts/16_run_vlm_inference.py `
+    --track geometry_only `
+    --provider openai_compatible `
+    --model $QWEN_MODEL `
+    --api-base $QWEN_API_BASE `
+    --api-key-env DASHSCOPE_API_KEY `
+    --overwrite
+
+python scripts/16_run_vlm_inference.py `
+    --track geovlm `
+    --provider openai_compatible `
+    --model $QWEN_MODEL `
+    --api-base $QWEN_API_BASE `
+    --api-key-env DASHSCOPE_API_KEY `
+    --overwrite
+```
+
+The three tracks mean:
+
+```text
+pure_vlm:      image + question
+geometry_only: object-level geometry + question
+geovlm:        image + object-level geometry + question
+```
+
+Progress is printed after every question by default. Add `--no-progress` only
+when running in a silent or scripted environment.
+
+Generated result files:
+
+```text
+outputs/inference/pure_vlm.jsonl
+outputs/inference/geometry_only.jsonl
+outputs/inference/geovlm.jsonl
+
+outputs/evaluations/pure_vlm_summary.json
+outputs/evaluations/geometry_only_summary.json
+outputs/evaluations/geovlm_summary.json
+```
+
+Each JSONL line stores the question ID, image, track, model, raw response,
+normalized prediction, correctness, latency, and provider error information.
+
+### 6. Generate the comparison report
+
+After all three tracks finish, compare them without making additional API calls:
+
+```powershell
+python scripts/17_compare_track_results.py --overwrite
+```
+
+Outputs:
+
+```text
+outputs/evaluations/track_comparison.json
+outputs/evaluations/track_disagreements.csv
+```
+
+Use `track_comparison.json` for aggregate and per-question-type metrics. Use
+`track_disagreements.csv` to inspect questions where the tracks disagree.
+
+### 7. Re-run only geometry-dependent tracks after a geometry fix
+
+If `scripts/10_extract_geometry.py` or
+`scripts/11_build_reasoning_prompts.py` changes, regenerate geometry and prompts,
+then rerun only:
+
+```powershell
+python scripts/16_run_vlm_inference.py --track geometry_only --provider openai_compatible --model $QWEN_MODEL --api-base $QWEN_API_BASE --api-key-env DASHSCOPE_API_KEY --overwrite
+python scripts/16_run_vlm_inference.py --track geovlm --provider openai_compatible --model $QWEN_MODEL --api-base $QWEN_API_BASE --api-key-env DASHSCOPE_API_KEY --overwrite
+python scripts/17_compare_track_results.py --overwrite
+```
+
+`pure_vlm` does not use geometry prompts, so it can remain as the fixed baseline
+unless the benchmark questions or images change.
+
 ## Limitations
 
 This project uses existing perception models and does not guarantee perfect geometry.
