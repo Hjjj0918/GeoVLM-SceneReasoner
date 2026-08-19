@@ -46,21 +46,29 @@ def missing_target_objects(geometry: dict[str, Any], target_objects: list[str]) 
     return [label for label in target_objects if label not in labels]
 
 
+def object_closeness_score(obj: dict[str, Any]) -> float | None:
+    for field in ("closeness_score", "relative_depth_p90", "relative_depth_median"):
+        value = obj.get(field)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
 def object_line(obj: dict[str, Any]) -> str:
     object_id = format_value(obj.get("object_id"))
     label = format_value(obj.get("label"))
     position = f"{format_value(obj.get('horizontal_position'))}/{format_value(obj.get('vertical_position'))}"
     centroid = format_value(obj.get("mask_centroid"))
     area = format_value(obj.get("mask_area_fraction"))
-    depth_median = format_value(obj.get("relative_depth_median"))
-    depth_percentile = format_value(obj.get("relative_depth_percentile"))
-    depth_hint = format_value(obj.get("depth_order_hint"))
+    closeness_score = format_value(object_closeness_score(obj))
+    closeness_percentile = format_value(obj.get("closeness_percentile"))
+    closeness_hint = format_value(obj.get("depth_order_hint"))
     raw_label = obj.get("raw_label")
     raw_suffix = f", raw_label={raw_label}" if raw_label and raw_label != obj.get("label") else ""
     return (
         f"- {object_id} {label}: position={position}, centroid={centroid}, "
-        f"area_fraction={area}, median_depth={depth_median}, "
-        f"depth_percentile={depth_percentile}, depth_hint={depth_hint}{raw_suffix}"
+        f"area_fraction={area}, closeness_score={closeness_score}, "
+        f"closeness_percentile={closeness_percentile}, closeness_hint={closeness_hint}{raw_suffix}"
     )
 
 
@@ -70,15 +78,66 @@ def relation_line(relation: dict[str, Any]) -> str:
         f"vs {format_value(relation.get('object_b'))} {format_value(relation.get('label_b'))}: "
         f"horizontal={format_value(relation.get('horizontal_relation'))}, "
         f"vertical={format_value(relation.get('vertical_relation'))}, "
-        f"depth={format_value(relation.get('depth_relation'))}"
+        f"closeness={format_value(relation.get('depth_relation'))}"
     )
 
 
-def summarize_geometry(geometry: dict[str, Any], target_objects: list[str]) -> str:
+def objects_for_label(geometry: dict[str, Any], label: str) -> list[dict[str, Any]]:
+    return [
+        obj
+        for obj in geometry.get("objects", [])
+        if isinstance(obj, dict) and obj.get("label") == label
+    ]
+
+
+def best_target_object(geometry: dict[str, Any], label: str) -> dict[str, Any] | None:
+    candidates = [
+        obj
+        for obj in objects_for_label(geometry, label)
+        if object_closeness_score(obj) is not None
+    ]
+    if not candidates:
+        return None
+    return max(candidates, key=lambda obj: object_closeness_score(obj) or float("-inf"))
+
+
+def target_closeness_comparison(geometry: dict[str, Any], target_objects: list[str], question_type: str | None) -> list[str]:
+    if question_type != "closer_farther" or len(target_objects) < 2:
+        return []
+
+    label_a, label_b = target_objects[:2]
+    object_a = best_target_object(geometry, label_a)
+    object_b = best_target_object(geometry, label_b)
+    lines = [
+        "Closer/farther standard: compare the nearest visible surface of each target object.",
+        "Target closeness comparison:",
+    ]
+    if object_a is None or object_b is None:
+        lines.append("- unavailable because one or both target labels are missing from geometry")
+        return lines
+
+    score_a = object_closeness_score(object_a)
+    score_b = object_closeness_score(object_b)
+    lines.extend(
+        [
+            f"- {label_a}: object={format_value(object_a.get('object_id'))}, closeness_score={format_value(score_a)}",
+            f"- {label_b}: object={format_value(object_b.get('object_id'))}, closeness_score={format_value(score_b)}",
+        ]
+    )
+    if score_a is None or score_b is None or abs(score_a - score_b) <= 1e-6:
+        lines.append("Estimated closer object from geometry: unknown")
+    else:
+        lines.append(
+            f"Estimated closer object from geometry: {label_a if score_a > score_b else label_b}"
+        )
+    return lines
+
+
+def summarize_geometry(geometry: dict[str, Any], target_objects: list[str], question_type: str | None = None) -> str:
     lines = [
         f"Image: {format_value(geometry.get('image'))}",
         f"Image size: {format_value(geometry.get('image_width'))} x {format_value(geometry.get('image_height'))}",
-        f"Depth assumption: {format_value(geometry.get('depth_order_assumption'))}",
+        "Closeness score: higher means closer; computed from nearest visible surface, not object center or median region.",
         f"Target object labels: {', '.join(target_objects) if target_objects else 'none'}",
         "Objects:",
     ]
@@ -100,6 +159,7 @@ def summarize_geometry(geometry: dict[str, Any], target_objects: list[str]) -> s
     if missing:
         lines.append(f"Missing target labels in geometry: {', '.join(missing)}")
 
+    lines.extend(target_closeness_comparison(geometry, target_objects, question_type))
     return "\n".join(lines)
 
 
@@ -122,8 +182,8 @@ def build_geometry_llm_prompt(question: dict[str, Any], geometry_summary: str) -
     return "\n".join(
         [
             "You are answering a spatial reasoning question using object-level geometry extracted from the image.",
-            "The geometry comes from object detection, SAM2 masks, and monocular relative depth.",
-            "Use the listed objects, positions, mask areas, depth statistics, and pairwise relations.",
+            "The geometry comes from object detection, SAM2 masks, and monocular near-surface closeness estimates.",
+            "Use the listed objects, positions, mask areas, closeness scores, and pairwise relations.",
             geometry_summary,
             f"Question: {question['question']}",
             answer_instruction(),
@@ -149,7 +209,11 @@ def build_prompt_record(question: dict[str, Any], geometry: dict[str, Any], geom
     if not isinstance(target_objects, list):
         target_objects = []
     target_objects = [str(item) for item in target_objects]
-    geometry_summary = summarize_geometry(geometry, target_objects=target_objects)
+    geometry_summary = summarize_geometry(
+        geometry,
+        target_objects=target_objects,
+        question_type=str(question.get("type")) if question.get("type") is not None else None,
+    )
     evaluation = question.get("evaluation", {})
     acceptable_answers = evaluation.get("acceptable_answers", []) if isinstance(evaluation, dict) else []
 

@@ -46,6 +46,7 @@ class GeometryRuleBaselineTest(unittest.TestCase):
                     "label": "laptop",
                     "mask_area_fraction": 0.2,
                     "relative_depth_median": 5.2,
+                    "closeness_score": 5.8,
                     "horizontal_position": "center",
                     "vertical_position": "middle",
                     "depth_order_hint": "near",
@@ -55,6 +56,7 @@ class GeometryRuleBaselineTest(unittest.TestCase):
                     "label": "mouse",
                     "mask_area_fraction": 0.05,
                     "relative_depth_median": 2.1,
+                    "closeness_score": 2.6,
                     "horizontal_position": "right",
                     "vertical_position": "middle",
                     "depth_order_hint": "far",
@@ -98,14 +100,29 @@ class GeometryRuleBaselineTest(unittest.TestCase):
             for record in records:
                 file.write(json.dumps(record) + "\n")
 
-    def test_answer_closer_farther_uses_pairwise_depth_relation(self):
+    def test_answer_closer_farther_uses_pairwise_closeness_relation(self):
         geometry = self.geometry_payload()
         record = self.prompt_record("closer_farther", ["laptop", "mouse"])
 
         result = self.module.answer_record(record, geometry)
 
         self.assertEqual(result["prediction"], "laptop")
-        self.assertEqual(result["source"], "pairwise_depth_relation")
+        self.assertEqual(result["source"], "pairwise_closeness_relation")
+        self.assertTrue(result["correct"])
+
+    def test_answer_closer_farther_uses_closeness_score_without_pairwise_relation(self):
+        geometry = self.geometry_payload()
+        geometry["pairwise_relations"] = []
+        geometry["objects"][0]["relative_depth_median"] = 2.0
+        geometry["objects"][0]["closeness_score"] = 9.0
+        geometry["objects"][1]["relative_depth_median"] = 8.0
+        geometry["objects"][1]["closeness_score"] = 3.0
+        record = self.prompt_record("closer_farther", ["laptop", "mouse"])
+
+        result = self.module.answer_record(record, geometry)
+
+        self.assertEqual(result["prediction"], "laptop")
+        self.assertEqual(result["source"], "closeness_score")
         self.assertTrue(result["correct"])
 
     def test_answer_physical_size_uses_mask_area_fraction(self):

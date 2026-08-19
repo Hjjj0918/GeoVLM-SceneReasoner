@@ -65,6 +65,7 @@ class BuildReasoningPromptsTest(unittest.TestCase):
                     "mask_centroid": [30.0, 50.0],
                     "mask_area_fraction": 0.2,
                     "relative_depth_median": 5.2,
+                    "closeness_score": 5.8,
                     "relative_depth_percentile": 0.8,
                     "horizontal_position": "left",
                     "vertical_position": "middle",
@@ -76,6 +77,7 @@ class BuildReasoningPromptsTest(unittest.TestCase):
                     "mask_centroid": [70.0, 55.0],
                     "mask_area_fraction": 0.05,
                     "relative_depth_median": 2.1,
+                    "closeness_score": 2.6,
                     "relative_depth_percentile": 0.3,
                     "horizontal_position": "right",
                     "vertical_position": "middle",
@@ -108,12 +110,20 @@ class BuildReasoningPromptsTest(unittest.TestCase):
         self.assertEqual(path, self.geometry_dir / "scene_0001_view_00.json")
 
     def test_summarize_geometry_includes_objects_and_relations(self):
-        summary = self.module.summarize_geometry(self.geometry_payload(), target_objects=["laptop", "mouse"])
+        question = self.question_payload()["questions"][0]
+        summary = self.module.summarize_geometry(
+            self.geometry_payload(),
+            target_objects=["laptop", "mouse"],
+            question_type=question["type"],
+        )
 
-        self.assertIn("Depth assumption: higher_relative_depth_is_closer", summary)
+        self.assertIn("Closeness score: higher means closer", summary)
+        self.assertIn("Closer/farther standard: compare the nearest visible surface", summary)
         self.assertIn("obj_001 laptop", summary)
         self.assertIn("position=left/middle", summary)
-        self.assertIn("median_depth=5.2", summary)
+        self.assertIn("closeness_score=5.8", summary)
+        self.assertNotIn("median_depth=", summary)
+        self.assertIn("Estimated closer object from geometry: laptop", summary)
         self.assertIn("obj_001 laptop vs obj_002 mouse: horizontal=left_of", summary)
 
     def test_build_prompt_record_omits_answer_from_prompt_text(self):

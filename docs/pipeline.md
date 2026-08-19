@@ -156,7 +156,7 @@ Outputs:
 outputs/geometry/<image_stem>.json
 ```
 
-Each geometry file contains object centers, mask area, bounding boxes, relative depth statistics, coarse position tags, and pairwise spatial relations.
+Each geometry file contains object centers, mask area, bounding boxes, relative depth statistics, a near-surface `closeness_score`, coarse position tags, and pairwise spatial relations.
 
 By default, the script assumes higher relative depth values mean closer objects. If manual review shows the opposite for a depth model or environment, rerun:
 
@@ -193,7 +193,7 @@ outputs/evaluations/geometry_rule_baseline_summary.json
 
 The baseline uses transparent rules for supported question types:
 
-- `closer_farther`: pairwise depth relation, then median relative depth
+- `closer_farther`: pairwise closeness relation, then nearest-visible-surface `closeness_score`
 - `physical_size`: mask area fraction
 - `support_relation`: simple position, depth, and area heuristic
 

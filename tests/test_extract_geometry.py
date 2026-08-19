@@ -124,8 +124,8 @@ class ExtractGeometryTest(unittest.TestCase):
 
     def test_build_pairwise_relations_uses_centers_and_depth(self):
         objects = [
-            {"object_id": "obj_001", "label": "cup", "mask_centroid": [2.0, 3.5], "relative_depth_median": 2.0},
-            {"object_id": "obj_002", "label": "laptop", "mask_centroid": [7.0, 3.0], "relative_depth_median": 8.0},
+            {"object_id": "obj_001", "label": "cup", "mask_centroid": [2.0, 3.5], "closeness_score": 2.0},
+            {"object_id": "obj_002", "label": "laptop", "mask_centroid": [7.0, 3.0], "closeness_score": 8.0},
         ]
 
         relations = self.module.build_pairwise_relations(
@@ -141,6 +141,34 @@ class ExtractGeometryTest(unittest.TestCase):
         self.assertEqual(relations[0]["object_b"], "obj_002")
         self.assertEqual(relations[0]["horizontal_relation"], "left_of")
         self.assertEqual(relations[0]["depth_relation"], "farther_than")
+
+    def test_build_pairwise_relations_uses_nearest_visible_surface_score(self):
+        objects = [
+            {
+                "object_id": "obj_001",
+                "label": "laptop",
+                "mask_centroid": [2.0, 3.5],
+                "relative_depth_median": 2.0,
+                "closeness_score": 9.0,
+            },
+            {
+                "object_id": "obj_002",
+                "label": "mouse",
+                "mask_centroid": [7.0, 3.0],
+                "relative_depth_median": 8.0,
+                "closeness_score": 3.0,
+            },
+        ]
+
+        relations = self.module.build_pairwise_relations(
+            objects,
+            image_width=10,
+            image_height=10,
+            depth_range=7.0,
+            higher_depth_is_closer=True,
+        )
+
+        self.assertEqual(relations[0]["depth_relation"], "closer_than")
 
     def test_extract_geometry_file_writes_expected_payload(self):
         image_stem = "scene_0001_view_00"
@@ -161,6 +189,7 @@ class ExtractGeometryTest(unittest.TestCase):
         self.assertEqual(len(payload["objects"]), 2)
         self.assertEqual(payload["objects"][0]["label"], "cup")
         self.assertEqual(payload["objects"][0]["horizontal_position"], "left")
+        self.assertEqual(payload["objects"][1]["closeness_score"], 8.0)
         self.assertEqual(payload["objects"][1]["depth_order_hint"], "near")
         self.assertEqual(payload["pairwise_relations"][0]["depth_relation"], "farther_than")
 

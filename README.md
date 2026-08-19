@@ -189,7 +189,7 @@ This project uses existing perception models and does not guarantee perfect geom
 
 - YOLO may miss or misclassify objects.
 - SAM2 masks are prompted by detection boxes, so segmentation can inherit detection errors.
-- Depth Anything V2 provides monocular relative depth, not metric 3D distance.
+- Depth Anything V2 provides monocular relative depth, not metric 3D distance. For `closer_farther`, GeoVLM uses a near-surface `closeness_score` where higher means closer.
 - Image-space size is not the same as real physical size.
 - Geometry-available examples still require manual mask and depth review before final evaluation.
 

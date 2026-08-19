@@ -43,9 +43,17 @@ The automatic split is conservative:
 
 - `pipeline_failure`: the baseline record has `error_reason=missing_target_objects`.
 - `geometry_available_candidates`: target objects were available to the geometry baseline.
-- `manual_review_pending`: candidate records that still require mask and depth review.
+- `manual_review_pending`: candidate records that still require mask and closeness/depth review.
 
-`geometry_available_candidates` does not mean the sample is clean. It means the target labels exist in the object-level geometry file. The segmentation mask and relative depth estimate may still be wrong.
+`geometry_available_candidates` does not mean the sample is clean. It means the target labels exist in the object-level geometry file. The segmentation mask and near-surface closeness estimate may still be wrong.
+
+For `closer_farther`, the benchmark convention is:
+
+```text
+closer = the target object's nearest visible surface is closer to the camera
+```
+
+This is intentionally not the same as image center, bounding-box center, or median visible-region depth.
 
 The review CSV includes manual review columns:
 

@@ -91,11 +91,18 @@ def answer_from_depth_relation(geometry: dict[str, Any], target_objects: list[st
         if reversed_order:
             depth_relation = invert_depth_relation(depth_relation)
         if depth_relation == "closer_than":
-            return label_a, "pairwise_depth_relation", 0.9
+            return label_a, "pairwise_closeness_relation", 0.9
         if depth_relation == "farther_than":
-            return label_b, "pairwise_depth_relation", 0.9
+            return label_b, "pairwise_closeness_relation", 0.9
 
     objects = object_by_label(geometry)
+    closeness_a = numeric_value(objects[label_a], "closeness_score")
+    closeness_b = numeric_value(objects[label_b], "closeness_score")
+    if closeness_a is not None and closeness_b is not None:
+        if abs(closeness_a - closeness_b) <= 1e-6:
+            return "unknown", "closeness_score", 0.0
+        return (label_a, "closeness_score", 0.7) if closeness_a > closeness_b else (label_b, "closeness_score", 0.7)
+
     depth_a = numeric_value(objects[label_a], "relative_depth_median")
     depth_b = numeric_value(objects[label_b], "relative_depth_median")
     if depth_a is None or depth_b is None:

@@ -171,6 +171,13 @@ def depth_order_hint(percentile: float | None, higher_depth_is_closer: bool) -> 
     return "middle"
 
 
+def near_surface_depth(depth_stats: dict[str, float | None], higher_depth_is_closer: bool) -> float | None:
+    """Return a robust nearest-visible-surface depth statistic."""
+    field = "relative_depth_p90" if higher_depth_is_closer else "relative_depth_p10"
+    value = depth_stats.get(field)
+    return float(value) if isinstance(value, (int, float)) else None
+
+
 def build_object_geometry(
     segment: dict[str, Any],
     mask: np.ndarray,
@@ -193,6 +200,12 @@ def build_object_geometry(
         depth_min=depth_min,
         depth_range=depth_range,
     )
+    closeness_score = near_surface_depth(depth_stats, higher_depth_is_closer)
+    closeness_percentile = depth_percentile(
+        closeness_score,
+        depth_min=depth_min,
+        depth_range=depth_range,
+    )
     x_value = centroid[0] if centroid else None
     y_value = centroid[1] if centroid else None
 
@@ -204,10 +217,12 @@ def build_object_geometry(
         "bbox_center": center,
         **mask_geometry,
         **depth_stats,
+        "closeness_score": round_float(closeness_score) if closeness_score is not None else None,
+        "closeness_percentile": closeness_percentile,
         "relative_depth_percentile": percentile,
         "horizontal_position": position_tag(x_value, image_width, "left", "center", "right"),
         "vertical_position": position_tag(y_value, image_height, "top", "middle", "bottom"),
-        "depth_order_hint": depth_order_hint(percentile, higher_depth_is_closer),
+        "depth_order_hint": depth_order_hint(closeness_percentile, higher_depth_is_closer),
     }
     if "raw_label" in segment:
         record["raw_label"] = segment["raw_label"]
@@ -277,8 +292,8 @@ def build_pairwise_relations(
                     "below",
                 ),
                 "depth_relation": compare_depth(
-                    object_a.get("relative_depth_median"),
-                    object_b.get("relative_depth_median"),
+                    object_a.get("closeness_score") or object_a.get("relative_depth_median"),
+                    object_b.get("closeness_score") or object_b.get("relative_depth_median"),
                     depth_threshold,
                     higher_depth_is_closer,
                 ),
