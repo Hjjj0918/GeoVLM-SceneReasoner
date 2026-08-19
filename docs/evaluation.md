@@ -182,3 +182,28 @@ GeoVLM: image + geovlm_prompt
 ```
 
 The runner saves both `raw_response` and normalized `prediction`, so model wording can be audited after evaluation. Mock results are for pipeline testing only and must not be reported as VLM accuracy.
+
+## Track Comparison
+
+After all three real-model runs finish, generate the paired comparison report:
+
+```powershell
+python scripts/17_compare_track_results.py --overwrite
+```
+
+This reads:
+
+```text
+outputs/inference/pure_vlm.jsonl
+outputs/inference/geometry_only.jsonl
+outputs/inference/geovlm.jsonl
+```
+
+and writes:
+
+```text
+outputs/evaluations/track_comparison.json
+outputs/evaluations/track_disagreements.csv
+```
+
+Use the JSON file for aggregate metrics and the CSV for manual inspection of disagreements.

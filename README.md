@@ -64,7 +64,7 @@ The current implementation provides the full preprocessing, geometry-baseline, a
 | Evaluation split generation | Implemented |
 | Manual-review clean subset generation | Implemented |
 | Model-agnostic VLM inference runner | Implemented |
-| Final comparison tables | Planned |
+| Track comparison report | Implemented |
 
 ## Installation
 
@@ -182,6 +182,19 @@ python scripts/12_run_geometry_rule_baseline.py --question-ids outputs/evaluatio
 ```
 
 More details are in [docs/evaluation.md](docs/evaluation.md).
+
+After all three VLM tracks finish, compare them without making more API calls:
+
+```powershell
+python scripts/17_compare_track_results.py --overwrite
+```
+
+This writes:
+
+```text
+outputs/evaluations/track_comparison.json
+outputs/evaluations/track_disagreements.csv
+```
 
 ## Limitations
 

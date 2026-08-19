@@ -329,3 +329,20 @@ outputs/evaluations/<track>_summary.json
 ```
 
 Each inference record stores the raw model response, normalized prediction, correctness, model name, track, latency, and any provider error.
+
+## 16. Track Comparison Report
+
+After `pure_vlm`, `geometry_only`, and `geovlm` have all finished, compare their existing JSONL files without calling a model again:
+
+```powershell
+python scripts/17_compare_track_results.py --overwrite
+```
+
+The script validates that all three tracks contain the same question IDs and writes:
+
+```text
+outputs/evaluations/track_comparison.json
+outputs/evaluations/track_disagreements.csv
+```
+
+The JSON report contains overall accuracy, per-question-type accuracy, and paired counts such as `pure_vlm` correct while `geovlm` is wrong. The CSV contains the individual questions where at least one track differs.
