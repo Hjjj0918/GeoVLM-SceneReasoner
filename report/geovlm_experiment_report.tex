@@ -1,0 +1,340 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=0.78in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{amsmath}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{figures/}{../data/images/}{../outputs/visualizations/masks/}{../outputs/depth/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.15}
+
+\definecolor{GeoBlue}{HTML}{245A7A}
+\definecolor{GeoGreen}{HTML}{2E7D50}
+\definecolor{GeoOrange}{HTML}{B85C00}
+\newcommand{\track}[1]{\texttt{#1}}
+\newcommand{\metric}[1]{\textbf{#1}}
+
+\title{\textbf{GeoVLM-SceneReasoner}\\
+\large Geometry-Aware Visual Reasoning for Vision-Language Models}
+\author{Experiment Report}
+\date{19 August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report documents the current end-to-end implementation and first controlled experiment of GeoVLM-SceneReasoner. The system asks whether explicit object-level geometry can improve a vision-language model's answers to spatial and physical questions in real images. A small multi-view desktop dataset was processed through YOLO detection, label normalization, SAM2 segmentation, Depth Anything V2 monocular depth estimation, object-level geometry extraction, prompt construction, and Qwen3-VL-Flash inference. On the manually reviewed 81-question clean subset, the image-only Pure VLM track achieved 91.36\% accuracy, while both the Geometry-only and GeoVLM tracks achieved 96.30\%. The gain was concentrated in closer/farther questions, where accuracy increased from 69.57\% to 86.96\%. The remaining failures show that monocular depth is useful as a structured signal but should not be treated as metric ground-truth 3D distance.
+\end{abstract}
+
+\section{Research Question and Scope}
+The central research question is:
+
+\begin{quote}
+\emph{When a VLM must reason about spatial relations, does adding explicit object-level geometry extracted from the image improve reliability compared with using the image alone?}
+\end{quote}
+
+The current experiment is deliberately small and diagnostic. It does not train a new VLM and does not claim general performance on public benchmarks. Instead, it establishes a reproducible pipeline and separates three effects:
+
+\begin{enumerate}[leftmargin=18pt,itemsep=1pt]
+    \item whether the perception stack can expose the target objects;
+    \item whether relative geometry provides useful evidence for reasoning;
+    \item whether the VLM can use that evidence consistently.
+\end{enumerate}
+
+The first dataset contains 37 photographs of the same desktop scene captured from different camera orientations. The objects were kept fixed while the phone camera was rotated through yaw, pitch, and roll variations. This is appropriate for a first multi-view study, but it also means that the dataset is small, correlated across views, and not a substitute for a larger public benchmark.
+
+\section{Current Implementation}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{pipeline_flow.png}
+    \caption{The implemented GeoVLM-SceneReasoner pipeline. The three reasoning tracks use the same reviewed questions and the same Qwen3-VL-Flash model, but receive different evidence.}
+    \label{fig:pipeline}
+\end{figure}
+
+The current pipeline is:
+
+\begin{enumerate}[leftmargin=18pt,itemsep=2pt]
+    \item \textbf{Image input:} read the multi-view images from \texttt{data/images/}.
+    \item \textbf{Object detection:} run YOLO11n to generate candidate labels, confidence scores, and bounding boxes.
+    \item \textbf{Detection normalization:} apply project-specific label aliases, for example mapping a closed laptop detected as \texttt{book} to the benchmark label \texttt{laptop}.
+    \item \textbf{Segmentation:} use the detection boxes as prompts for SAM2 and save one mask per detected object.
+    \item \textbf{Depth estimation:} run Depth Anything V2 Small to generate a monocular relative depth map and a visual preview.
+    \item \textbf{Geometry extraction:} combine masks and depth into object-level records containing centroids, mask area, position tags, depth statistics, and a near-surface \texttt{closeness\_score}. Higher scores are interpreted as closer under the current depth convention.
+    \item \textbf{Prompt construction:} build separate prompts for image-only, geometry-only, and image-plus-geometry reasoning.
+    \item \textbf{VLM inference:} call the OpenAI-compatible DashScope endpoint with Qwen3-VL-Flash. The API key is read from an environment variable and is not stored in the repository.
+    \item \textbf{Evaluation:} normalize the model answer to an object label, compare it with the manually reviewed answer, and write per-question JSONL plus aggregate summaries.
+\end{enumerate}
+
+The main implementation files are:
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item \path{scripts/04_detect_objects.py}, \path{scripts/06_normalize_detections.py}
+    \item \path{scripts/07_segment_objects.py}, \path{scripts/09_estimate_depth.py}
+    \item \path{scripts/10_extract_geometry.py}, \path{scripts/11_build_reasoning_prompts.py}
+    \item \path{scripts/16_run_vlm_inference.py}, \path{scripts/17_compare_track_results.py}
+\end{itemize}
+
+\section{Dataset Construction and Quality Control}
+The original question file contains 111 records: three question templates were expanded across the available views. The question types used in the clean evaluation are:
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item \texttt{closer\_farther}: 23 questions;
+    \item \texttt{support\_relation}: 31 questions;
+    \item \texttt{physical\_size}: 27 questions.
+\end{itemize}
+
+Before model comparison, each candidate record was reviewed using the original image, detection output, SAM2 mask visualization, and depth preview. A record entered the clean subset only when \texttt{mask\_ok}, \texttt{depth\_ok}, and \texttt{question\_valid} were all marked yes. This produced 81 clean questions and excluded 30 records.
+
+\begin{table}[H]
+\centering
+\caption{Dataset and evaluation counts.}
+\label{tab:dataset}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Stage} & \textbf{Count} & \textbf{Interpretation}\\
+\midrule
+Captured images & 37 & Same scene, multiple camera orientations\\
+Original questions & 111 & Three templates expanded over views\\
+Geometry-available candidates & 81 & Target labels available in geometry output\\
+Pipeline failures excluded & 30 & At least one required target was missing\\
+Final clean questions & 81 & Used for all three VLM tracks\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The 30 excluded records are not counted as VLM reasoning errors. They are upstream perception failures or missing-target cases. Keeping them separate prevents a detector or normalizer failure from being incorrectly attributed to the language model.
+
+\section{Evaluation Tracks and Metrics}
+All three tracks use the same 81 questions, the same answer labels, and the same model name, \texttt{qwen3-vl-flash}. They differ only in the evidence provided:
+
+\begin{table}[H]
+\centering
+\caption{Evidence supplied to each reasoning track.}
+\label{tab:tracks}
+\begin{tabularx}{\linewidth}{lX}
+\toprule
+\textbf{Track} & \textbf{Input evidence}\\
+\midrule
+\track{pure\_vlm} & Image and question only. This is the image-only baseline.\\
+\track{geometry\_only} & Structured object geometry and question, without the image.\\
+\track{geovlm} & Image, structured object geometry, and question.\\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+For each question, the runner stores the raw provider response, normalized prediction, correctness, latency, and error field. The primary metric is exact-match accuracy:
+
+\[
+\text{accuracy} = \frac{\text{number of correct predictions}}{\text{number of clean questions}}.
+\]
+
+All 81 requests in the reported run returned an answer, so coverage was 100\% and answered accuracy was identical to end-to-end accuracy. The comparison is therefore about answer correctness rather than API availability.
+
+\section{Aggregate Results}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\linewidth]{track_accuracy.png}
+    \caption{Overall accuracy on the 81-question clean subset.}
+    \label{fig:overall}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Overall results for the current Qwen3-VL-Flash run.}
+\label{tab:overall}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Track} & \textbf{Correct} & \textbf{Total} & \textbf{Accuracy} & \textbf{Coverage}\\
+\midrule
+Pure VLM & 74 & 81 & 91.36\% & 100\%\\
+Geometry-only & 78 & 81 & 96.30\% & 100\%\\
+GeoVLM & 78 & 81 & 96.30\% & 100\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The geometry-aware tracks improve over the image-only baseline by 4.94 percentage points. On this dataset, Geometry-only and GeoVLM produce the same aggregate result. This does not show that the image branch is useless; it shows that the current clean subset and current prompt design do not expose a case where the additional image evidence changes the final answer beyond the structured geometry.
+
+\section{Results by Question Type}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\linewidth]{question_type_accuracy.png}
+    \caption{Accuracy by question type. The improvement is concentrated in closer/farther reasoning.}
+    \label{fig:types}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Accuracy by question type.}
+\label{tab:types}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Question type} & \textbf{Total} & \textbf{Pure VLM} & \textbf{Geometry-only} & \textbf{GeoVLM}\\
+\midrule
+\texttt{closer\_farther} & 23 & 69.57\% & 86.96\% & 86.96\%\\
+\texttt{support\_relation} & 31 & 100.00\% & 100.00\% & 100.00\%\\
+\texttt{physical\_size} & 27 & 100.00\% & 100.00\% & 100.00\%\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The main measurable effect is therefore not a general increase across every question type. It is a targeted improvement on relative closeness. Support relation and physical size were already solved perfectly by all tracks on this small clean subset, leaving no headroom for a geometry gain.
+
+\section{Paired Comparison and Key Finding}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\linewidth]{pairwise_outcomes.png}
+    \caption{Per-question paired outcomes for Pure VLM versus GeoVLM.}
+    \label{fig:paired}
+\end{figure}
+
+When the Pure VLM and GeoVLM predictions are aligned question by question:
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item both tracks are correct on 74 questions;
+    \item GeoVLM corrects Pure VLM on 4 questions;
+    \item Pure VLM is not correct on any question where GeoVLM is wrong;
+    \item both tracks are wrong on 3 questions.
+\end{itemize}
+
+The four corrected questions are \texttt{scene\_0001\_view\_14\_q001}, \texttt{view\_15\_q001}, \texttt{view\_16\_q001}, and \texttt{view\_25\_q001}. In each case, Pure VLM predicted \texttt{mouse}, while both geometry-aware tracks predicted the manually reviewed answer \texttt{laptop}. This is the strongest current evidence that the object-level geometry signal can correct a visual shortcut made by the image-only model.
+
+\section{Case Study: View 21 and Ambiguous Monocular Depth}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{../data/images/scene_0001_view_21.jpg}
+        \caption{Original image.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{../outputs/visualizations/masks/scene_0001_view_21.jpg}
+        \caption{SAM2 mask visualization.}
+    \end{subfigure}
+
+    \vspace{4pt}
+
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{../outputs/depth/scene_0001_view_21_preview.jpg}
+        \caption{Depth Anything V2 preview.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{../data/images/scene_0001_view_14.jpg}
+        \caption{A representative corrected view.}
+    \end{subfigure}
+    \caption{Visual evidence used in the error analysis. View 21 shows a large laptop in the lower foreground and a mouse on the right side of the desk.}
+    \label{fig:case}
+\end{figure}
+
+The question for view 21 asks which object is closer to the camera, laptop or mouse. The manual answer is \texttt{laptop}. Human inspection supports this label: the laptop occupies the lower foreground and its front edge is visually prominent, while the mouse sits farther to the right on the mousepad.
+
+The geometry extractor, however, reports:
+
+\begin{table}[H]
+\centering
+\caption{Near-surface closeness values for the three remaining closer/farther errors.}
+\label{tab:ambiguity}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{View} & \textbf{Laptop} & \textbf{Mouse} & \textbf{Difference}\\
+\midrule
+18 & 5.540544 & 5.740040 & 0.199496\\
+19 & 5.163826 & 5.189509 & 0.025683\\
+21 & 5.789515 & 5.798141 & 0.008626\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\linewidth]{closeness_ambiguity.png}
+    \caption{The remaining three closer/farther errors occur when laptop and mouse receive close near-surface scores.}
+    \label{fig:ambiguity}
+\end{figure}
+
+All three tracks predicted \texttt{mouse} for views 18, 19, and 21. The important interpretation is not that the question was necessarily misunderstood. Rather, this is a failure of the available evidence: monocular relative depth can be unstable for large nearby objects lying on the same desktop plane, and the current closeness score is only a proxy for camera distance. For views 19 and 21, the scores are nearly tied and should be treated as low-confidence or ambiguous geometry. In view 21, the manually reviewed visual label remains \texttt{laptop}, but the geometry signal does not provide a sufficiently strong margin to support that conclusion.
+
+\section{What the Results Mean}
+The experiment supports three limited conclusions.
+
+\begin{enumerate}[leftmargin=18pt,itemsep=2pt]
+    \item \textbf{Explicit geometry is useful.} Adding object-level geometry improved the overall result from 91.36\% to 96.30\% and corrected four Pure VLM errors.
+    \item \textbf{The gain is task-dependent.} The improvement appears in closer/farther questions, not in support relation or physical size, which were already perfect in the current subset.
+    \item \textbf{Geometry is evidence, not ground truth.} The depth model produces relative monocular values and cannot guarantee metric distance or correct ordering in every view. The remaining errors are therefore scientifically useful: they identify where the geometry representation needs uncertainty handling or better 3D evidence.
+\end{enumerate}
+
+The equality of Geometry-only and GeoVLM in this run is also informative. On the current questions, the structured geometry summary contained enough information for the model to reach the same answers as the image-plus-geometry track. Future questions involving visual appearance, fine-grained object identity, or ambiguous masks may create a larger role for the image branch.
+
+\section{Limitations}
+\begin{itemize}[leftmargin=18pt,itemsep=2pt]
+    \item \textbf{Small correlated dataset:} all 37 images come from one physical scene and one capture session.
+    \item \textbf{Upstream perception errors:} YOLO can miss or misclassify objects; SAM2 is prompted by those boxes; depth is computed from a monocular model.
+    \item \textbf{Relative rather than metric depth:} Depth Anything V2 does not return calibrated camera distance. The \texttt{closeness\_score} is a local ordering signal.
+    \item \textbf{Manual labels are not perfect physical ground truth:} the laptop-versus-mouse labels reflect human inspection of the images and scene setup.
+    \item \textbf{Single model and single run:} all three tracks use Qwen3-VL-Flash and the report does not yet include repeated trials, confidence intervals, or model diversity.
+    \item \textbf{Narrow task coverage:} the current clean subset contains closer/farther, support relation, and physical size questions, but not a mature set of occlusion, left/right, front/back, or multi-object relation tests.
+\end{itemize}
+
+\section{Next Experimental Plan}
+\begin{enumerate}[leftmargin=18pt,itemsep=2pt]
+    \item Expand from one desktop scene to multiple scenes and public real-image sources, while preserving explicit manual review for target visibility, mask quality, and answer validity.
+    \item Add uncertainty-aware reasoning. A small closeness margin should produce an \texttt{unknown} or low-confidence signal rather than a forced binary ordering.
+    \item Improve depth evaluation with calibrated multi-view information, camera intrinsics, stereo or structure-from-motion, and selected metric-depth datasets.
+    \item Add question types that require both geometry and visual semantics, including occlusion, left/right relations, object support, and physical-size reasoning under changing viewpoints.
+    \item Repeat each track with fixed prompts and multiple runs, report confidence intervals, and compare at least one additional VLM.
+    \item Keep perception failures and reasoning failures in separate tables so that future improvements can be attributed to the correct module.
+\end{enumerate}
+
+\section{Reproducibility}
+The reported artifacts are already present in the repository:
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item \texttt{outputs/evaluations/clean\_subset.json}
+    \item \texttt{outputs/inference/pure\_vlm.jsonl}
+    \item \texttt{outputs/inference/geometry\_only.jsonl}
+    \item \texttt{outputs/inference/geovlm.jsonl}
+    \item \texttt{outputs/evaluations/track\_comparison.json}
+    \item \texttt{outputs/evaluations/track\_disagreements.csv}
+\end{itemize}
+
+To regenerate the report figures:
+
+\begin{verbatim}
+python scripts/18_generate_report_figures.py
+\end{verbatim}
+
+To regenerate the comparison summary after rerunning the three tracks:
+
+\begin{verbatim}
+python scripts/17_compare_track_results.py --overwrite
+\end{verbatim}
+
+To compile this report from the repository root:
+
+\begin{verbatim}
+Push-Location report
+xelatex -interaction=nonstopmode geovlm_experiment_report.tex
+Pop-Location
+\end{verbatim}
+
+The API key is never needed to compile the report. It is only required when rerunning the remote VLM inference, and should remain in the environment variable described in \texttt{README.md}.
+
+\section{Conclusion}
+GeoVLM-SceneReasoner has now reached a complete first experimental loop: real images were collected, perception outputs were generated, candidates were manually reviewed, three evidence tracks were run through the same VLM, and their predictions were compared question by question. The current result is encouraging but appropriately limited. Geometry improved the most difficult relation type in this small study, while the remaining errors expose the central research challenge: useful geometric signals must be combined with calibrated uncertainty and stronger multi-view or metric depth evidence before they can be treated as reliable 3D reasoning support.
+
+\end{document}
