@@ -1,0 +1,9 @@
+{
+  "img_types": ["single_view"],
+  "format_priority": ["select", "fill"],
+  "task_keywords": ["depth", "distance", "spatial", "relation"],
+  "excluded_modalities": ["video", "multi_view"],
+  "supported_metrics": ["exact_match", "multiple_choice", "numeric_tolerance"],
+  "seed": 20260821,
+  "per_task_limit": 20
+}

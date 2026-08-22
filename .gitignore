@@ -25,6 +25,8 @@ docs/superpowers/
 # Raw local datasets
 data/images/*
 !data/images/.gitkeep
+data/public_spar/*
+!data/public_spar/.gitkeep
 data/questions.draft.json
 
 # Generated pipeline outputs
