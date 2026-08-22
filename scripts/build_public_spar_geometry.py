@@ -138,10 +138,42 @@ def extract_marker_geometry(image: Any, depth: Any, intrinsics: Any = None) -> d
 
 
 def _marker_relations(markers: Mapping[str, Any]) -> dict[str, Any]:
+    pairwise: dict[str, Any] = {}
+    marker_items = [
+        (str(color), marker)
+        for color, marker in markers.items()
+        if isinstance(marker, Mapping)
+    ]
+    for left_index, (left_color, left_marker) in enumerate(marker_items):
+        left_xyz = left_marker.get("camera_xyz")
+        left_depth = left_marker.get("depth")
+        if not isinstance(left_xyz, list) or len(left_xyz) != 3:
+            continue
+        for right_color, right_marker in marker_items[left_index + 1 :]:
+            right_xyz = right_marker.get("camera_xyz")
+            right_depth = right_marker.get("depth")
+            if not isinstance(right_xyz, list) or len(right_xyz) != 3:
+                continue
+            pair_name = f"{left_color}_to_{right_color}"
+            relation: dict[str, Any] = {
+                "euclidean_distance": round(
+                    math.sqrt(
+                        sum((float(a) - float(b)) ** 2 for a, b in zip(left_xyz, right_xyz))
+                    ),
+                    6,
+                ),
+                "unit": "dataset_native",
+            }
+            if isinstance(left_depth, (int, float)) and isinstance(right_depth, (int, float)):
+                relation["depth_difference_right_minus_left"] = round(
+                    float(right_depth) - float(left_depth), 6
+                )
+            pairwise[pair_name] = relation
+
     red = markers.get("red")
     blue = markers.get("blue")
     if not isinstance(red, Mapping) or not isinstance(blue, Mapping):
-        return {}
+        return {"pairwise": pairwise} if pairwise else {}
     relation = {
         "depth_difference_blue_minus_red": round(float(blue["depth"]) - float(red["depth"]), 6),
         "unit": "dataset_native",
@@ -152,6 +184,8 @@ def _marker_relations(markers: Mapping[str, Any]) -> dict[str, Any]:
             math.sqrt(sum((float(a) - float(b)) ** 2 for a, b in zip(red_xyz, blue_xyz))),
             6,
         )
+    if pairwise:
+        relation["pairwise"] = pairwise
     return relation
 
 

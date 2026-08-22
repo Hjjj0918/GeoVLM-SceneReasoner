@@ -30,8 +30,12 @@ def _format_geometry(geometry: Mapping[str, Any]) -> str:
         )
         markers = view.get("markers", {})
         if isinstance(markers, Mapping):
-            for color in ("red", "blue"):
-                marker = markers.get(color)
+            color_order = {"red": 0, "green": 1, "blue": 2}
+            marker_items = sorted(
+                markers.items(),
+                key=lambda item: (color_order.get(str(item[0]), 99), str(item[0])),
+            )
+            for color, marker in marker_items:
                 if isinstance(marker, Mapping):
                     lines.append(
                         f"View {view.get('view_index')} {color} marker: "
@@ -46,6 +50,17 @@ def _format_geometry(geometry: Mapping[str, Any]) -> str:
                 f"euclidean_distance={relations.get('euclidean_distance', 'unknown')}, "
                 f"unit={relations.get('unit', 'dataset_native')}"
             )
+            pairwise = relations.get("pairwise", {})
+            if isinstance(pairwise, Mapping):
+                for pair_name, pair in pairwise.items():
+                    if not isinstance(pair, Mapping):
+                        continue
+                    lines.append(
+                        f"View {view.get('view_index')} marker pair {pair_name}: "
+                        f"depth_difference={pair.get('depth_difference_right_minus_left', 'unknown')}, "
+                        f"euclidean_distance={pair.get('euclidean_distance', 'unknown')}, "
+                        f"unit={pair.get('unit', 'dataset_native')}"
+                    )
     return "\n".join(lines)
 
 
@@ -102,6 +117,7 @@ def build_prompt_record(question: Mapping[str, Any], geometry: Mapping[str, Any]
         "images": json_safe(question.get("images", [])),
         "task": question.get("task"),
         "format_type": question.get("format_type"),
+        "img_type": question.get("img_type"),
         "evaluation": json_safe(question.get("evaluation", {})),
         "answer": json_safe(question.get("answer")),
         "geometry_path": question.get("geometry_path"),

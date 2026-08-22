@@ -105,6 +105,26 @@ def test_build_geometry_record_makes_marker_task_available_and_adds_pairwise_dis
     assert record["views"][0]["marker_relations"]["euclidean_distance"] > 0
 
 
+def test_marker_relations_include_all_available_marker_pairs():
+    image = np.zeros((7, 7, 3), dtype=np.uint8)
+    image[1:3, 1:3] = [255, 0, 0]
+    image[3:5, 3:5] = [0, 255, 0]
+    image[5:7, 5:7] = [0, 0, 255]
+    row = {
+        **_row(),
+        "image": [image],
+        "depth": [np.full((7, 7), 2.0, dtype=np.float32)],
+        "intrinsic_depth": [np.eye(3, dtype=np.float32)],
+    }
+
+    record = build_geometry_record(row, {"question_id": "spar_tiny_000007"})
+    pairwise = record["views"][0]["marker_relations"]["pairwise"]
+
+    assert "red_to_green" in pairwise
+    assert "red_to_blue" in pairwise
+    assert "green_to_blue" in pairwise
+
+
 def test_build_geometry_files_streaming_writes_only_selected_source_rows(tmp_path, monkeypatch):
     rows = []
     for source_id in range(5):

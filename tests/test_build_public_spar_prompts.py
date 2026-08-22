@@ -35,9 +35,17 @@ def _geometry():
             "pose": {"valid": True, "shape": [4, 4]},
             "markers": {
                 "red": {"pixel_xy": [1.5, 2.5], "depth": 2.0, "camera_xyz": [-1.5, -0.5, 2.0]},
+                "green": {"pixel_xy": [2.5, 3.5], "depth": 3.0, "camera_xyz": [0.0, 1.0, 3.0]},
                 "blue": {"pixel_xy": [4.5, 4.5], "depth": 5.0, "camera_xyz": [3.75, 3.75, 5.0]},
             },
-            "marker_relations": {"depth_difference_blue_minus_red": 3.0, "euclidean_distance": 7.41},
+            "marker_relations": {
+                "depth_difference_blue_minus_red": 3.0,
+                "euclidean_distance": 7.41,
+                "pairwise": {
+                    "red_to_green": {"euclidean_distance": 1.414214},
+                    "red_to_blue": {"euclidean_distance": 7.41},
+                },
+            },
         }],
     }
 
@@ -51,6 +59,9 @@ def test_build_prompt_record_separates_evidence_for_all_three_tracks():
     assert "depth" in record["prompts"]["geometry_only"].lower()
     assert "red marker" in record["prompts"]["geometry_only"].lower()
     assert "euclidean_distance" in record["prompts"]["geometry_only"].lower()
+    assert "green marker" in record["prompts"]["geometry_only"].lower()
+    assert "red_to_green" in record["prompts"]["geometry_only"]
+    assert record["img_type"] == "single_view"
     assert "rgb-d" in record["prompts"]["geovlm"].lower()
 
 
