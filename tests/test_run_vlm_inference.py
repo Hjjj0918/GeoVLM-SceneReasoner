@@ -6,6 +6,8 @@ Usage: python -m pytest tests/test_run_vlm_inference.py -q
 import importlib.util
 import io
 import json
+import subprocess
+import sys
 import unittest
 from pathlib import Path
 
@@ -159,6 +161,15 @@ class RunVlmInferenceTest(unittest.TestCase):
                 provider=FakeProvider(),
                 overwrite=False,
             )
+
+    def test_cli_help_runs_when_script_is_invoked_directly(self):
+        result = subprocess.run(
+            [sys.executable, "scripts/16_run_vlm_inference.py", "--help"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == "__main__":

@@ -10,8 +10,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.build_public_spar_geometry import build_geometry_files
-from scripts.inspect_public_spar import load_dataset_rows
+from scripts.build_public_spar_geometry import build_geometry_files_streaming
 
 
 def parse_args() -> argparse.Namespace:
@@ -30,8 +29,14 @@ def main() -> int:
     try:
         subset = json.loads(args.subset.read_text(encoding="utf-8"))
         question_records = subset.get("questions", [])
-        rows = load_dataset_rows(args.dataset, args.split, args.streaming)
-        paths = build_geometry_files(rows, question_records, args.output_dir, overwrite=args.overwrite)
+        paths = build_geometry_files_streaming(
+            dataset_name=args.dataset,
+            split=args.split,
+            question_records=question_records,
+            output_dir=args.output_dir,
+            streaming=args.streaming,
+            overwrite=args.overwrite,
+        )
     except (FileExistsError, FileNotFoundError, OSError, RuntimeError, ValueError) as error:
         print(error)
         return 1

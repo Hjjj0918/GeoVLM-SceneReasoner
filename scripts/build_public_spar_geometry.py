@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import math
+import json
 from pathlib import Path
 from typing import Any, Mapping
 
 import numpy as np
 
 from scripts.public_spar_common import json_safe, to_list, write_json
+from scripts.inspect_public_spar import iter_dataset_rows
 
 
 def _array(value: Any) -> np.ndarray | None:
@@ -25,6 +27,14 @@ def _array(value: Any) -> np.ndarray | None:
 
 def _matrix_status(value: Any, expected_shape: tuple[int, int]) -> dict[str, Any]:
     array = _array(value)
+    if array is not None and array.ndim == 1:
+        expected_size = expected_shape[0] * expected_shape[1]
+        if array.size == expected_size:
+            array = array.reshape(expected_shape)
+        elif array.size == 16:
+            # SPAR stores calibrated matrices as flattened homogeneous 4x4
+            # arrays for both camera intrinsics and poses.
+            array = array.reshape((4, 4))
     if array is None or array.ndim != 2 or array.shape != expected_shape:
         shape = list(array.shape) if array is not None else None
         return {"valid": False, "shape": shape}
@@ -37,6 +47,16 @@ def _matrix_status(value: Any, expected_shape: tuple[int, int]) -> dict[str, Any
 
 
 def validate_intrinsics(value: Any) -> dict[str, Any]:
+    array = _array(value)
+    if array is not None and array.ndim == 1 and array.size == 16:
+        array = array.reshape((4, 4))
+    if array is not None and array.shape == (4, 4):
+        finite = bool(np.isfinite(array).all())
+        return {
+            "valid": finite,
+            "shape": [4, 4],
+            "values": json_safe(array.tolist()) if finite else None,
+        }
     return _matrix_status(value, (3, 3))
 
 
@@ -52,7 +72,9 @@ def _marker_mask(image: np.ndarray, color: str) -> np.ndarray:
     red, green, blue = rgb[..., 0], rgb[..., 1], rgb[..., 2]
     if color == "red":
         return (red >= 180) & (red - green >= 60) & (red - blue >= 60)
-    return (blue >= 180) & (blue - red >= 60) & (blue - green >= 60)
+    if color == "blue":
+        return (blue >= 180) & (blue - red >= 60) & (blue - green >= 60)
+    return (green >= 140) & (green - red >= 45) & (green - blue >= 45)
 
 
 def _sample_depth(depth: np.ndarray, x: float, y: float, radius: int = 1) -> tuple[float | None, int]:
@@ -69,7 +91,7 @@ def _sample_depth(depth: np.ndarray, x: float, y: float, radius: int = 1) -> tup
 
 
 def _camera_xyz(x: float, y: float, depth: float, intrinsics: np.ndarray | None) -> list[float] | None:
-    if intrinsics is None or intrinsics.shape != (3, 3) or not np.isfinite(intrinsics).all():
+    if intrinsics is None or intrinsics.shape not in {(3, 3), (4, 4)} or not np.isfinite(intrinsics).all():
         return None
     fx, fy = float(intrinsics[0, 0]), float(intrinsics[1, 1])
     cx, cy = float(intrinsics[0, 2]), float(intrinsics[1, 2])
@@ -92,7 +114,7 @@ def extract_marker_geometry(image: Any, depth: Any, intrinsics: Any = None) -> d
     depth_height, depth_width = depth_array.shape[:2]
     intrinsic_array = _array(intrinsics)
     markers: dict[str, Any] = {}
-    for color in ("red", "blue"):
+    for color in ("red", "green", "blue"):
         mask = _marker_mask(image_array, color)
         ys, xs = np.where(mask)
         if xs.size == 0:
@@ -265,3 +287,70 @@ def build_geometry_files(
         write_json(record, path, overwrite=overwrite)
         paths.append(path)
     return paths
+
+
+def build_geometry_files_streaming(
+    dataset_name: str,
+    split: str,
+    question_records: list[dict[str, Any]],
+    output_dir: Path,
+    streaming: bool = True,
+    overwrite: bool = False,
+) -> list[Path]:
+    """Read source rows one at a time and write geometry only for selected IDs."""
+    questions_by_source = {
+        str(question.get("source_id")): question for question in question_records
+    }
+    written: dict[str, Path] = {}
+    for row in iter_dataset_rows(
+        dataset_name=dataset_name,
+        split=split,
+        streaming=streaming,
+        columns=[
+            "id",
+            "image",
+            "depth",
+            "pose",
+            "intrinsic_color",
+            "intrinsic_depth",
+            "task",
+        ],
+    ):
+        source_id = str(row.get("id"))
+        question = questions_by_source.get(source_id)
+        if question is None:
+            continue
+        record = build_geometry_record(row, question)
+        if contains_answer_leak(record):
+            raise ValueError(f"Answer leak detected for {question.get('question_id')}")
+        path = output_dir / f"{question['question_id']}.json"
+        write_json(record, path, overwrite=overwrite)
+        written[source_id] = path
+
+    missing = set(questions_by_source) - set(written)
+    if missing:
+        raise ValueError(f"Selected source rows were not available: {sorted(missing)}")
+    return [written[str(question["source_id"])] for question in question_records]
+
+
+def repair_geometry_file(path: Path) -> None:
+    """Repair marker camera coordinates in an already-generated geometry file."""
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for view in payload.get("views", []):
+        intrinsic = _array(view.get("intrinsic_depth", {}).get("values"))
+        if intrinsic is not None and intrinsic.ndim == 1 and intrinsic.size == 16:
+            intrinsic = intrinsic.reshape((4, 4))
+        markers = view.get("markers", {})
+        if not isinstance(markers, Mapping):
+            continue
+        for marker in markers.values():
+            if not isinstance(marker, Mapping):
+                continue
+            pixel = marker.get("depth_pixel_xy")
+            depth = marker.get("depth")
+            if isinstance(pixel, list) and len(pixel) == 2 and isinstance(depth, (int, float)):
+                marker["camera_xyz"] = _camera_xyz(
+                    float(pixel[0]), float(pixel[1]), float(depth), intrinsic
+                )
+        view["marker_relations"] = _marker_relations(markers)
+    write_json(payload, path, overwrite=True)

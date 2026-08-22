@@ -6,6 +6,8 @@ import numpy as np
 
 from scripts.build_public_spar_geometry import (
     build_geometry_record,
+    build_geometry_files_streaming,
+    repair_geometry_file,
     contains_answer_leak,
     extract_marker_geometry,
     validate_intrinsics,
@@ -34,6 +36,8 @@ def test_validate_camera_matrices_accepts_expected_shapes_and_rejects_invalid_va
     assert validate_pose(np.eye(4))["shape"] == [4, 4]
     assert validate_intrinsics([[1, 2], [3, 4]])["valid"] is False
     assert validate_pose([[1, 2, 3]])["valid"] is False
+    assert validate_intrinsics(np.eye(4).reshape(-1))["valid"] is True
+    assert validate_pose(np.eye(4).reshape(-1))["valid"] is True
 
 
 def test_build_geometry_record_contains_depth_stats_camera_evidence_and_no_answer():
@@ -99,3 +103,60 @@ def test_build_geometry_record_makes_marker_task_available_and_adds_pairwise_dis
     assert record["task_geometry_status"] == "available"
     assert set(record["views"][0]["markers"]) == {"red", "blue"}
     assert record["views"][0]["marker_relations"]["euclidean_distance"] > 0
+
+
+def test_build_geometry_files_streaming_writes_only_selected_source_rows(tmp_path, monkeypatch):
+    rows = []
+    for source_id in range(5):
+        row = _row()
+        row["id"] = source_id
+        rows.append(row)
+    question_records = [
+        {"question_id": "spar_tiny_000001", "source_id": "1", "images": ["one.jpg"]},
+        {"question_id": "spar_tiny_000003", "source_id": "3", "images": ["three.jpg"]},
+    ]
+    calls = []
+
+    def fake_iter_dataset_rows(*, columns=None, **kwargs):
+        calls.append(columns)
+        yield from rows
+
+    monkeypatch.setattr("scripts.build_public_spar_geometry.iter_dataset_rows", fake_iter_dataset_rows)
+
+    paths = build_geometry_files_streaming(
+        dataset_name="fixture",
+        split="test",
+        question_records=question_records,
+        output_dir=tmp_path,
+        streaming=True,
+        overwrite=False,
+    )
+
+    assert {path.name for path in paths} == {"spar_tiny_000001.json", "spar_tiny_000003.json"}
+    assert "image" in calls[0]
+    assert "depth" in calls[0]
+    assert json.loads((tmp_path / "spar_tiny_000001.json").read_text())["source_id"] == "1"
+
+
+def test_repair_geometry_file_uses_flattened_or_4x4_intrinsics_for_marker_xyz(tmp_path):
+    path = tmp_path / "sample.json"
+    payload = {
+        "views": [{
+            "intrinsic_depth": {"valid": True, "shape": [4, 4], "values": [
+                [2.0, 0.0, 1.0, 0.0], [0.0, 2.0, 1.0, 0.0],
+                [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]
+            ]},
+            "markers": {
+                "red": {"depth_pixel_xy": [3.0, 5.0], "depth": 4.0, "camera_xyz": None},
+                "blue": {"depth_pixel_xy": [5.0, 5.0], "depth": 6.0, "camera_xyz": None},
+            },
+            "marker_relations": {},
+        }],
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    repair_geometry_file(path)
+
+    repaired = json.loads(path.read_text(encoding="utf-8"))
+    assert repaired["views"][0]["markers"]["red"]["camera_xyz"] == [4.0, 8.0, 4.0]
+    assert repaired["views"][0]["marker_relations"]["euclidean_distance"] > 0

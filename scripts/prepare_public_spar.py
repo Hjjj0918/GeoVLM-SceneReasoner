@@ -39,7 +39,6 @@ PREPARE_METADATA_COLUMNS = [
     "format_type",
     "task",
     "source",
-    "image",
     "question",
     "answer",
 ]
@@ -326,7 +325,10 @@ def prepare_streaming_rows(
         columns=PREPARE_METADATA_COLUMNS,
     ):
         metadata = {key: row.get(key) for key in PREPARE_METADATA_COLUMNS if key != "image"}
-        metadata["_image_available"] = bool(to_list(row.get("image")))
+        # Image decoding is intentionally deferred to the second pass. The
+        # public benchmark guarantees an RGB image for retained rows; missing
+        # media is reported by the second pass if it cannot be decoded.
+        metadata["_image_available"] = True
         metadata_rows.append(metadata)
 
     selected, excluded = select_rows(metadata_rows, phase=phase, config=config)
@@ -336,7 +338,20 @@ def prepare_streaming_rows(
         dataset_name=dataset_name,
         split=split,
         streaming=streaming,
-        columns=None,
+        columns=[
+            "id",
+            "image",
+            "depth",
+            "pose",
+            "intrinsic_color",
+            "intrinsic_depth",
+            "task",
+            "question",
+            "answer",
+            "format_type",
+            "img_type",
+            "source",
+        ],
     ):
         source_id = normalize_source_id(row.get("id"))
         if source_id not in selected_ids:

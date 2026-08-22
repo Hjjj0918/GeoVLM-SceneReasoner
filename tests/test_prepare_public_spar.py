@@ -142,6 +142,7 @@ def test_prepare_streaming_rows_keeps_metadata_pass_light_and_exports_only_selec
     assert audit_path.exists()
     assert calls[0] is not None
     assert "depth" not in calls[0]
-    assert calls[1] is None
+    assert "image" in calls[1]
+    assert "depth" in calls[1]
     assert len(list((tmp_path / "images").glob("*.jpg"))) == 30
     assert len(json.loads(subset_path.read_text())["questions"]) == 30
