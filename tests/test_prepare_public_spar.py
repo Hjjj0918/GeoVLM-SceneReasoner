@@ -11,6 +11,7 @@ from scripts.prepare_public_spar import (
     select_rows,
     selection_audit,
     write_phase_outputs,
+    prepare_streaming_rows,
 )
 from scripts.inspect_public_spar_test_support import make_fixture_rows
 
@@ -98,3 +99,49 @@ def test_write_phase_outputs_writes_unified_questions_file_and_source_fingerprin
     assert unified["questions"][0]["question_id"] == "spar_tiny_000001"
     assert audit["selected_source_ids"] == ["1"]
     assert len(audit["source_fingerprint_sha256"]) == 64
+
+
+def test_prepare_streaming_rows_keeps_metadata_pass_light_and_exports_only_selected_rows(tmp_path, monkeypatch):
+    from PIL import Image
+
+    rows = []
+    for index in range(40):
+        rows.append(
+            {
+                **make_fixture_rows()[0],
+                "id": index,
+                "task": "distance_prediction_oc" if index < 20 else "depth_prediction_oc",
+                "image": [Image.new("RGB", (2, 2), "blue")],
+                "depth": [f"large-depth-{index}"],
+            }
+        )
+    calls = []
+
+    def fake_iter_dataset_rows(*, columns=None, **kwargs):
+        calls.append(columns)
+        for row in rows:
+            if columns is None:
+                yield row
+            else:
+                yield {key: row[key] for key in columns if key in row}
+
+    monkeypatch.setattr("scripts.prepare_public_spar.iter_dataset_rows", fake_iter_dataset_rows)
+
+    subset_path, audit_path = prepare_streaming_rows(
+        dataset_name="fixture",
+        split="test",
+        phase="a",
+        output_root=tmp_path / "subsets",
+        images_dir=tmp_path / "images",
+        questions_path=tmp_path / "questions.spar.json",
+        config={**DEFAULT_SELECTION, "per_task_limit": 20},
+        overwrite=False,
+    )
+
+    assert subset_path.exists()
+    assert audit_path.exists()
+    assert calls[0] is not None
+    assert "depth" not in calls[0]
+    assert calls[1] is None
+    assert len(list((tmp_path / "images").glob("*.jpg"))) == 30
+    assert len(json.loads(subset_path.read_text())["questions"]) == 30

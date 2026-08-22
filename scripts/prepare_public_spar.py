@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import hashlib
-import random
 from collections import Counter
 from pathlib import Path
 from typing import Any, Mapping
@@ -21,6 +20,7 @@ from scripts.public_spar_common import (
     utc_timestamp,
     write_json,
 )
+from scripts.inspect_public_spar import iter_dataset_rows
 
 
 DEFAULT_SELECTION: dict[str, Any] = {
@@ -33,6 +33,16 @@ DEFAULT_SELECTION: dict[str, Any] = {
     "per_task_limit": 20,
 }
 PHASE_LIMITS = {"a": 30, "b": 150, "c": None}
+PREPARE_METADATA_COLUMNS = [
+    "id",
+    "img_type",
+    "format_type",
+    "task",
+    "source",
+    "image",
+    "question",
+    "answer",
+]
 
 
 def _text(value: Any) -> str:
@@ -78,7 +88,8 @@ def _exclusion_reasons(row: Mapping[str, Any], config: Mapping[str, Any]) -> lis
         reasons.append("metric_not_supported_by_selection")
     if not _text(row.get("question")):
         reasons.append("question_missing")
-    if not to_list(row.get("image")):
+    image_available = row.get("_image_available", bool(to_list(row.get("image"))))
+    if not image_available:
         reasons.append("image_missing")
     return reasons
 
@@ -264,6 +275,89 @@ def write_phase_outputs(
         overwrite=overwrite,
     )
     return subset_path, audit_path
+
+
+def _write_converted_outputs(
+    converted: list[dict[str, Any]],
+    selected: list[dict[str, Any]],
+    excluded: list[dict[str, Any]],
+    phase: str,
+    output_root: Path,
+    questions_path: Path | None,
+    config: Mapping[str, Any],
+    overwrite: bool,
+) -> tuple[Path, Path]:
+    output_root.mkdir(parents=True, exist_ok=True)
+    subset_path = output_root / f"phase_{phase}_{len(converted)}.json"
+    audit_path = output_root / f"phase_{phase}_{len(converted)}_audit.json"
+    write_json(
+        {"phase": phase, "questions": converted, "question_ids": [item["question_id"] for item in converted]},
+        subset_path,
+        overwrite=overwrite,
+    )
+    write_json(selection_audit(selected, excluded, phase, config), audit_path, overwrite=overwrite)
+    unified_path = questions_path or Path("data/public_spar/questions.spar.json")
+    write_json(
+        {"version": "0.1", "dataset": DATASET_NAME, "phase": phase, "questions": converted},
+        unified_path,
+        overwrite=overwrite,
+    )
+    return subset_path, audit_path
+
+
+def prepare_streaming_rows(
+    dataset_name: str,
+    split: str,
+    phase: str,
+    output_root: Path,
+    images_dir: Path,
+    config: Mapping[str, Any] | None = None,
+    questions_path: Path | None = None,
+    overwrite: bool = False,
+    streaming: bool = True,
+) -> tuple[Path, Path]:
+    """Select using lightweight rows, then decode/export only selected rows."""
+    config = {**DEFAULT_SELECTION, **(dict(config) if config else {})}
+    metadata_rows: list[dict[str, Any]] = []
+    for row in iter_dataset_rows(
+        dataset_name=dataset_name,
+        split=split,
+        streaming=streaming,
+        columns=PREPARE_METADATA_COLUMNS,
+    ):
+        metadata = {key: row.get(key) for key in PREPARE_METADATA_COLUMNS if key != "image"}
+        metadata["_image_available"] = bool(to_list(row.get("image")))
+        metadata_rows.append(metadata)
+
+    selected, excluded = select_rows(metadata_rows, phase=phase, config=config)
+    selected_ids = {normalize_source_id(row.get("id")) for row in selected}
+    converted_by_id: dict[str, dict[str, Any]] = {}
+    for row in iter_dataset_rows(
+        dataset_name=dataset_name,
+        split=split,
+        streaming=streaming,
+        columns=None,
+    ):
+        source_id = normalize_source_id(row.get("id"))
+        if source_id not in selected_ids:
+            continue
+        converted_by_id[source_id] = convert_row(row)
+        export_row_images(row, images_dir)
+
+    missing = selected_ids - set(converted_by_id)
+    if missing:
+        raise ValueError(f"Selected source rows were not available in media pass: {sorted(missing)}")
+    converted = [converted_by_id[normalize_source_id(row.get("id"))] for row in selected]
+    return _write_converted_outputs(
+        converted=converted,
+        selected=selected,
+        excluded=excluded,
+        phase=phase,
+        output_root=output_root,
+        questions_path=questions_path,
+        config=config,
+        overwrite=overwrite,
+    )
 
 
 def load_rows_from_huggingface(dataset_name: str, split: str, streaming: bool = False) -> list[dict[str, Any]]:

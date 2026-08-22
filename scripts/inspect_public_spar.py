@@ -180,18 +180,39 @@ def write_inspection_outputs(
 
 def load_dataset_rows(
     dataset_name: str = "jasonzhango/SPAR-Bench-Tiny-RGBD",
-    split: str = "train",
+    split: str = "test",
     streaming: bool = False,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
+    return list(
+        iter_dataset_rows(
+            dataset_name=dataset_name,
+            split=split,
+            streaming=streaming,
+            limit=limit,
+        )
+    )
+
+
+def iter_dataset_rows(
+    dataset_name: str = "jasonzhango/SPAR-Bench-Tiny-RGBD",
+    split: str = "test",
+    streaming: bool = False,
+    limit: int | None = None,
+    columns: list[str] | None = None,
+):
+    """Yield dataset rows without retaining the dataset in a Python list."""
     try:
         from datasets import load_dataset
     except ImportError as error:
         raise RuntimeError("Install datasets with: python -m pip install datasets") from error
     dataset = load_dataset(dataset_name, split=split, streaming=streaming)
-    rows = []
+    if columns is not None:
+        available = set(getattr(dataset, "column_names", []) or [])
+        requested = [column for column in columns if column in available]
+        if requested and hasattr(dataset, "select_columns"):
+            dataset = dataset.select_columns(requested)
     for index, row in enumerate(dataset):
-        rows.append(dict(row))
+        yield dict(row)
         if limit is not None and index + 1 >= limit:
             break
-    return rows

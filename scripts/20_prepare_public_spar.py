@@ -10,7 +10,7 @@ from pathlib import Path
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from scripts.prepare_public_spar import DEFAULT_SELECTION, load_rows_from_huggingface, write_phase_outputs
+from scripts.prepare_public_spar import DEFAULT_SELECTION, prepare_streaming_rows
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,15 +33,16 @@ def main() -> int:
         config = DEFAULT_SELECTION
         if args.config.exists():
             config = {**DEFAULT_SELECTION, **json.loads(args.config.read_text(encoding="utf-8"))}
-        rows = load_rows_from_huggingface(args.dataset, args.split, args.streaming)
-        subset_path, audit_path = write_phase_outputs(
-            rows,
-            args.phase,
-            args.output_root,
-            args.images_dir,
+        subset_path, audit_path = prepare_streaming_rows(
+            dataset_name=args.dataset,
+            split=args.split,
+            phase=args.phase,
+            output_root=args.output_root,
+            images_dir=args.images_dir,
             config=config,
             questions_path=args.questions_output,
             overwrite=args.overwrite,
+            streaming=args.streaming,
         )
     except (FileExistsError, FileNotFoundError, OSError, RuntimeError, ValueError) as error:
         print(error)
