@@ -10,8 +10,10 @@ from scripts.build_public_spar_geometry import (
     repair_geometry_file,
     contains_answer_leak,
     extract_marker_geometry,
+    _sample_depth,
     validate_intrinsics,
     validate_pose,
+    required_marker_colors,
 )
 
 
@@ -64,11 +66,51 @@ def test_contains_answer_leak_detects_gold_answer_in_nested_geometry():
 
 def test_unlocalizable_point_task_is_marked_geometry_unavailable_without_inventing_point():
     row = {**_row(), "task": "depth_prediction_oc", "answer": "9.0"}
-    record = build_geometry_record(row, {"question_id": "spar_tiny_000007"})
+    record = build_geometry_record(
+        row,
+        {
+            "question_id": "spar_tiny_000007",
+            "question": row["question"],
+        },
+    )
 
     assert record["task_geometry_status"] == "geometry_unavailable"
     assert record["unavailable_reason"] == "no_point_or_object_reference"
     assert "9.0" not in json.dumps(record)
+
+
+def test_required_marker_colors_reads_colors_from_question_text():
+    assert required_marker_colors("Which is closer: chair (green point) or box (blue point) to bag (red point)?") == {
+        "red",
+        "green",
+        "blue",
+    }
+    assert required_marker_colors("Compare the laptop (red bbox) with monitor (blue bbox).") == {
+        "red",
+        "blue",
+    }
+
+
+def test_marker_task_is_unavailable_when_a_required_marker_has_no_depth():
+    image = np.zeros((7, 7, 3), dtype=np.uint8)
+    image[1:3, 1:3] = [255, 0, 0]
+    image[4:6, 4:6] = [0, 0, 255]
+    row = {
+        **_row(),
+        "task": "distance_infer_center_oo",
+        "question": "Which is closer: chair (green point) or box (blue point) to bag (red point)?",
+        "image": [image],
+        "depth": [np.zeros((7, 7), dtype=np.float32)],
+    }
+
+    record = build_geometry_record(
+        row,
+        {"question_id": "spar_tiny_000007", "question": row["question"]},
+    )
+
+    assert record["task_geometry_status"] == "geometry_unavailable"
+    assert record["unavailable_reason"] == "required_marker_missing"
+    assert record["required_marker_colors"] == ["blue", "green", "red"]
 
 
 def test_extract_marker_geometry_reads_red_blue_depth_and_camera_coordinates():
@@ -85,6 +127,77 @@ def test_extract_marker_geometry_reads_red_blue_depth_and_camera_coordinates():
     assert markers["red"]["depth"] == 2.0
     assert markers["blue"]["depth"] == 5.0
     assert len(markers["red"]["camera_xyz"]) == 3
+    assert markers["red"]["pixel_bbox"] == [1, 2, 2, 3]
+
+
+def test_extract_marker_geometry_uses_bbox_center_when_overlapping_markers_occlude_pixels():
+    image = np.zeros((20, 30, 3), dtype=np.uint8)
+    image[2, 2:18] = [255, 0, 0]
+    image[12, 2:18] = [255, 0, 0]
+    image[2:13, 2] = [255, 0, 0]
+    image[2:13, 17] = [255, 0, 0]
+    image[1, 10:28] = [0, 0, 255]
+    image[11, 10:28] = [0, 0, 255]
+    image[1:12, 10] = [0, 0, 255]
+    image[1:12, 27] = [0, 0, 255]
+    depth = np.full((20, 30), 5.0, dtype=np.float32)
+    intrinsics = np.array([[2.0, 0.0, 15.0], [0.0, 2.0, 10.0], [0.0, 0.0, 1.0]])
+
+    markers = extract_marker_geometry(image, depth, intrinsics)
+
+    assert markers["red"]["pixel_bbox"] == [2, 2, 17, 12]
+    assert markers["blue"]["pixel_bbox"] == [10, 1, 27, 11]
+    assert markers["red"]["pixel_xy"] == [9.5, 7.0]
+    assert markers["blue"]["pixel_xy"] == [18.5, 6.0]
+    assert markers["red"]["visible_pixel_median_xy"] != markers["red"]["pixel_xy"]
+
+
+def test_extract_marker_geometry_reshapes_flattened_four_by_four_intrinsics():
+    image = np.zeros((7, 7, 3), dtype=np.uint8)
+    image[2:4, 1:3] = [255, 0, 0]
+    depth = np.full((7, 7), 4.0, dtype=np.float32)
+    intrinsics = np.array(
+        [2.0, 0.0, 1.0, 0.0, 0.0, 2.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0]
+    )
+
+    markers = extract_marker_geometry(image, depth, intrinsics)
+
+    assert markers["red"]["camera_xyz"] is not None
+
+
+def test_extract_marker_geometry_ignores_saturated_wood_background_when_finding_red_marker():
+    image = np.full((20, 20, 3), [190, 105, 70], dtype=np.uint8)
+    image[8:12, 14:18] = [255, 0, 0]
+    image[2:6, 2:6] = [0, 0, 255]
+    depth = np.full((20, 20), 3.0, dtype=np.float32)
+
+    markers = extract_marker_geometry(image, depth, np.eye(3, dtype=np.float32))
+
+    assert markers["red"]["pixel_xy"] == [15.5, 9.5]
+    assert markers["red"]["marker_pixel_count"] == 16
+
+
+def test_extract_marker_geometry_keeps_low_brightness_green_annotation():
+    image = np.zeros((20, 20, 3), dtype=np.uint8)
+    image[4:8, 4:8] = [255, 0, 0]
+    image[9:13, 9:13] = [0, 128, 1]
+    image[14:18, 14:18] = [0, 0, 255]
+    depth = np.full((20, 20), 2.0, dtype=np.float32)
+
+    markers = extract_marker_geometry(image, depth, np.eye(3, dtype=np.float32))
+
+    assert set(markers) == {"red", "green", "blue"}
+    assert markers["green"]["pixel_xy"] == [10.5, 10.5]
+
+
+def test_sample_depth_falls_back_to_valid_pixels_near_marker_center():
+    depth = np.zeros((9, 9), dtype=np.float32)
+    depth[4, 6] = 7.0
+
+    value, count = _sample_depth(depth, 4, 4)
+
+    assert value == 7.0
+    assert count == 1
 
 
 def test_build_geometry_record_makes_marker_task_available_and_adds_pairwise_distance():

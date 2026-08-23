@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import math
 import json
+import re
 from pathlib import Path
 from typing import Any, Mapping
 
+import cv2
 import numpy as np
 
 from scripts.public_spar_common import json_safe, to_list, write_json
@@ -70,27 +72,47 @@ def _marker_mask(image: np.ndarray, color: str) -> np.ndarray:
         return np.zeros(rgb.shape[:2], dtype=bool) if rgb.ndim >= 2 else np.zeros((0, 0), dtype=bool)
     rgb = rgb[..., :3].astype(np.int16)
     red, green, blue = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-    if color == "red":
-        return (red >= 180) & (red - green >= 60) & (red - blue >= 60)
-    if color == "blue":
-        return (blue >= 180) & (blue - red >= 60) & (blue - green >= 60)
-    return (green >= 140) & (green - red >= 45) & (green - blue >= 45)
+    channels = {"red": red, "green": green, "blue": blue}
+    channel = channels[color]
+    other_channels = [value for name, value in channels.items() if name != color]
+
+    # SPAR overlays are highly saturated, while scene colors such as wood,
+    # carpet, and skin can have a large but much weaker channel difference.
+    # Keep the lower green cutoff because the JPEG overlay is often around
+    # RGB [0, 128, 0], not the full [0, 255, 0].
+    minimum = {"red": 220, "green": 100, "blue": 180}[color]
+    dominance = {"red": 150, "green": 100, "blue": 150}[color]
+    mask = (channel >= minimum) & (channel - np.maximum(other_channels[0], other_channels[1]) >= dominance)
+
+    # Restrict each color to its largest connected annotation component. This
+    # prevents a scattered collection of similarly colored scene pixels from
+    # shifting the marker centroid.
+    labels_count, labels, stats, _ = cv2.connectedComponentsWithStats(
+        mask.astype(np.uint8), connectivity=8
+    )
+    if labels_count <= 1:
+        return np.zeros_like(mask, dtype=bool)
+    largest_label = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+    return labels == largest_label
 
 
 def _sample_depth(depth: np.ndarray, x: float, y: float, radius: int = 1) -> tuple[float | None, int]:
     height, width = depth.shape[:2]
     center_x = int(round(x))
     center_y = int(round(y))
-    left, right = max(0, center_x - radius), min(width, center_x + radius + 1)
-    top, bottom = max(0, center_y - radius), min(height, center_y + radius + 1)
-    values = depth[top:bottom, left:right]
-    values = values[np.isfinite(values) & (values > 0)]
-    if values.size == 0:
-        return None, 0
-    return round(float(np.median(values)), 6), int(values.size)
+    for current_radius in (radius, max(radius, 3)):
+        left, right = max(0, center_x - current_radius), min(width, center_x + current_radius + 1)
+        top, bottom = max(0, center_y - current_radius), min(height, center_y + current_radius + 1)
+        values = depth[top:bottom, left:right]
+        values = values[np.isfinite(values) & (values > 0)]
+        if values.size:
+            return round(float(np.median(values)), 6), int(values.size)
+    return None, 0
 
 
 def _camera_xyz(x: float, y: float, depth: float, intrinsics: np.ndarray | None) -> list[float] | None:
+    if intrinsics is not None and intrinsics.ndim == 1 and intrinsics.size == 16:
+        intrinsics = intrinsics.reshape((4, 4))
     if intrinsics is None or intrinsics.shape not in {(3, 3), (4, 4)} or not np.isfinite(intrinsics).all():
         return None
     fx, fy = float(intrinsics[0, 0]), float(intrinsics[1, 1])
@@ -119,7 +141,11 @@ def extract_marker_geometry(image: Any, depth: Any, intrinsics: Any = None) -> d
         ys, xs = np.where(mask)
         if xs.size == 0:
             continue
-        image_x, image_y = float(np.median(xs)), float(np.median(ys))
+        min_x, max_x = int(xs.min()), int(xs.max())
+        min_y, max_y = int(ys.min()), int(ys.max())
+        visible_x, visible_y = float(np.median(xs)), float(np.median(ys))
+        image_x = (min_x + max_x) / 2.0
+        image_y = (min_y + max_y) / 2.0
         depth_x = image_x * depth_width / max(image_width, 1)
         depth_y = image_y * depth_height / max(image_height, 1)
         marker_depth, sample_count = _sample_depth(depth_array, depth_x, depth_y)
@@ -127,6 +153,8 @@ def extract_marker_geometry(image: Any, depth: Any, intrinsics: Any = None) -> d
             continue
         markers[color] = {
             "pixel_xy": [round(image_x, 3), round(image_y, 3)],
+            "visible_pixel_median_xy": [round(visible_x, 3), round(visible_y, 3)],
+            "pixel_bbox": [min_x, min_y, max_x, max_y],
             "depth_pixel_xy": [round(depth_x, 3), round(depth_y, 3)],
             "marker_pixel_count": int(xs.size),
             "depth_sample_count": sample_count,
@@ -230,9 +258,24 @@ def _has_answer_free_reference(row: Mapping[str, Any]) -> bool:
     return any(row.get(key) not in (None, [], {}) for key in reference_keys)
 
 
-def _task_status(row: Mapping[str, Any], views: list[dict[str, Any]]) -> tuple[str, str | None]:
+def required_marker_colors(question: str) -> set[str]:
+    """Return marker colors explicitly referenced by a SPAR question."""
+    return {
+        color
+        for color in ("red", "green", "blue")
+        if re.search(rf"\b{color}\s+(?:point|bbox)\b", str(question), re.IGNORECASE)
+    }
+
+
+def _task_status(
+    row: Mapping[str, Any], views: list[dict[str, Any]], question: Mapping[str, Any]
+) -> tuple[str, str | None]:
     task = str(row.get("task", "")).strip().lower()
     has_markers = any(view.get("markers") for view in views)
+    required = required_marker_colors(str(question.get("question", "")))
+    available = set().union(*(set(view.get("markers", {})) for view in views))
+    if required and not required.issubset(available):
+        return "geometry_unavailable", "required_marker_missing"
     if (task.endswith("_oc") or task.endswith("_oo")) and not (
         _has_answer_free_reference(row) or has_markers
     ):
@@ -283,7 +326,8 @@ def build_geometry_record(row: Mapping[str, Any], question_record: Mapping[str, 
                 "marker_relations": _marker_relations(markers),
             }
         )
-    task_status, unavailable_reason = _task_status(row, views)
+    required_colors = sorted(required_marker_colors(str(question_record.get("question", ""))))
+    task_status, unavailable_reason = _task_status(row, views, question_record)
     record: dict[str, Any] = {
         "question_id": question_record.get("question_id"),
         "dataset": "spar_bench_tiny_rgbd",
@@ -291,6 +335,7 @@ def build_geometry_record(row: Mapping[str, Any], question_record: Mapping[str, 
         "geometry_source": "oracle_rgbd",
         "task": str(row.get("task", "")),
         "task_geometry_status": task_status,
+        "required_marker_colors": required_colors,
         "views": views,
         "view_count": len(views),
         "available_view_count": sum(
