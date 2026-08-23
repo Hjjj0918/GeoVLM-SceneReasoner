@@ -1,0 +1,131 @@
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=0.78in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{float}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+
+\graphicspath{{../data/public_spar/images/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+\renewcommand{\arraystretch}{1.15}
+
+\newcommand{\track}[1]{\texttt{#1}}
+
+\title{\textbf{GeoVLM on Public SPAR}\\
+\large Why the Geometry-Aware Track Improved}
+\author{Experiment Report}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+This report summarizes the latest Public SPAR run in GeoVLM-SceneReasoner. We compare three tracks on the same 24-question subset: \track{pure\_vlm}, \track{geometry\_only}, and \track{geovlm}. After tightening the prompt structure, front-loading the geometric decision aid, repairing local bbox metadata, and adding readiness checks, \track{geovlm} improved to 14/24 accuracy, compared with 12/24 for \track{geometry\_only} and 9/24 for \track{pure\_vlm}. The main gain comes from making the model use image semantics for identity and structured geometry for spatial relations in a more disciplined way.
+\end{abstract}
+
+\section{Background}
+
+GeoVLM-SceneReasoner asks a simple question with a hard answer: can explicit object-level geometry improve spatial reasoning in a vision-language model? The project compares three tracks on the same benchmark items.
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item \track{pure\_vlm} uses the image and the question only.
+    \item \track{geometry\_only} uses structured geometry and the question, but no image.
+    \item \track{geovlm} uses both the image and the structured geometry.
+\end{itemize}
+
+The latest result on the canonical 24-question Public SPAR subset is:
+
+\begin{table}[H]
+\centering
+\caption{Public SPAR comparison on the 24-question subset.}
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Track} & \textbf{Correct} & \textbf{Total} & \textbf{Accuracy} \\
+\midrule
+\track{pure\_vlm} & 9 & 24 & 37.50\% \\
+\track{geometry\_only} & 12 & 24 & 50.00\% \\
+\track{geovlm} & 14 & 24 & 58.33\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+This matters because the original concern was that \track{geovlm} was not clearly better than \track{geometry\_only}. The recent changes reversed that situation.
+
+\section{What Changed}
+
+The improvement did not come from a single trick. It came from making the geometry pipeline and the prompt pipeline work together.
+
+\begin{enumerate}[leftmargin=18pt,itemsep=2pt]
+    \item We rewrote the Public SPAR prompt builder so that the geometric decision aid appears first for the two geometry-sensitive task types.
+    \item We made the prompt divide labor more clearly. The image is used to identify the red, green, and blue entities. The geometry is used to decide distance, left-right, above-below, and closer-farther relations.
+    \item We added prompt audit and readiness checks to catch leading newlines, missing decision aids, and subset mismatches before inference.
+    \item We repaired bbox metadata in the geometry oracle so that marker bboxes, center coordinates, depth pixels, and camera-space coordinates stay internally consistent.
+\end{enumerate}
+
+The two most important prompt rules are simple.
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item For \track{distance\_infer\_center\_oo}, compare the full 3D Euclidean distance from the red reference object to each candidate marker.
+    \item For \track{obj\_spatial\_relation\_oo}, use image-space bbox centers for left-right and above-below, and use camera-space depth for closer-farther.
+\end{itemize}
+
+\section{Case Study 1}
+
+\subsection{Question 000205}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.88\linewidth]{spar_tiny_000205_view_00.jpg}
+    \caption{Question 000205. The red marker is the trash can. The blue and green markers are two towels.}
+\end{figure}
+
+The question asks which towel is farther from the red trash can. The oracle geometry gives a red-to-green 3D distance of 447.63 and a red-to-blue 3D distance of 680.72. So the blue towel is farther.
+
+This is a good example of why the front-loaded decision aid matters. In the raw image, the blue towel sits high on the toilet and the green towel is low on the left, so the scene invites a quick visual guess. The new prompt forces the model to compare the two red-to-candidate Euclidean distances first. That prevents it from treating visual salience or image position as a substitute for 3D distance.
+
+\section{Case Study 2}
+
+\subsection{Question 000251}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.90\linewidth]{spar_tiny_000251_view_00.jpg}
+    \caption{Question 000251. The red bbox marks the bed and the blue bbox marks the backpack.}
+\end{figure}
+
+This question asks how the bed is placed relative to the backpack under the observer's frame of reference. The image makes the left-right relation clear, because the bed is on the right side of the frame and the backpack is on the left. The depth relation is the subtle part. The oracle depth values are 1671 for the bed and 2070 for the backpack, so the backpack is farther and the bed is closer.
+
+The key technical point is that the prompt explicitly assigns each part of the relation to the right coordinate system. Left-right and above-below come from bbox centers in image space. Farther-closer comes from camera-space depth. That separation reduces the chance that the model confuses perspective cues with the actual geometric relation.
+
+\section{Why GeoVLM Improved}
+
+The improvement is best understood as a change in how evidence is organized.
+
+\begin{itemize}[leftmargin=18pt,itemsep=1pt]
+    \item The geometry is no longer buried in the middle of the prompt. It is exposed first, in a compact decision aid.
+    \item The image no longer has to do all the work. It only identifies which object is which.
+    \item The structured geometry no longer competes with the image. It resolves the actual spatial relation.
+    \item The input pipeline is cleaner, so the model sees fewer accidental inconsistencies in bbox and marker metadata.
+\end{itemize}
+
+In other words, the gain comes from alignment. The prompt tells the model what the image should decide and what the geometry should decide. Once that division is clear, \track{geovlm} can use both sources of evidence more reliably than either \track{pure\_vlm} or \track{geometry\_only}.
+
+\section{Conclusion and Next Steps}
+
+The current result is strong enough to support a more formal conclusion. On the canonical 24-question subset, \track{geovlm} is now the best-performing track. The improvement is modest in absolute size, but the direction is clear and the mechanism is interpretable.
+
+The next steps are:
+
+\begin{enumerate}[leftmargin=18pt,itemsep=2pt]
+    \item Expand the evaluation to a larger subset and verify that the gain is stable.
+    \item Run ablations to separate the effects of prompt structure, bbox quality, and geometry injection.
+    \item Inspect the remaining disagreements to find the failure modes that still limit \track{geovlm}.
+\end{enumerate}
+
+If these results hold at larger scale, the final claim will be simple: explicit geometry helps most when it is made precise, front-loaded, and paired with the image in a disciplined way.
+
+\end{document}

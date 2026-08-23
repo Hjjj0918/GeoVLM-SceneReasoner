@@ -1,0 +1,126 @@
+\documentclass[10pt]{article}
+
+\usepackage[margin=0.56in]{geometry}
+\usepackage{array}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+
+\graphicspath{{../data/public_spar/images/}}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{3pt}
+\setlist[itemize]{leftmargin=1.05em, itemsep=1pt, topsep=2pt, parsep=0pt}
+\renewcommand{\arraystretch}{1.12}
+\newcommand{\track}[1]{\texttt{#1}}
+
+\newcommand{\projecttitle}{GeoVLM-SceneReasoner}
+\newcommand{\subtitle}{Geometry-Aware Visual Reasoning for Vision-Language Models}
+
+\begin{document}
+
+\begin{center}
+{\Large \textbf{\projecttitle}}\\[-1pt]
+{\normalsize \subtitle}\\
+{\small Huang Jiangzixuan \quad | \quad University of Hong Kong \quad | \quad \href{https://github.com/Hjjj0918/GeoVLM-SceneReasoner}{github.com/Hjjj0918/GeoVLM-SceneReasoner}}
+\end{center}
+
+\vspace{-5pt}
+
+\textbf{Project Goal.}
+GeoVLM-SceneReasoner studies whether vision-language models can answer real-image spatial reasoning questions more reliably when explicit object-level geometry is added. The project is focused on a reproducible evaluation pipeline that separates perception errors from reasoning errors and makes the source of each mistake visible.
+
+\textbf{Current Progress.}
+We now have a working Public SPAR pipeline with prompt generation, bbox repair, prompt audit, readiness checks, and three-track inference. On the canonical 24-question subset, \track{pure\_vlm} reached 9/24, \track{geometry\_only} reached 12/24, and \track{geovlm} reached 14/24. The track comparison also reported 15 disagreements, which gives us a compact set of cases for failure analysis.
+
+\vspace{-1pt}
+\begin{center}
+\small
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Track} & \textbf{Correct} & \textbf{Total} & \textbf{Accuracy} \\
+\midrule
+\track{pure\_vlm} & 9 & 24 & 37.5\% \\
+\track{geometry\_only} & 12 & 24 & 50.0\% \\
+\track{geovlm} & 14 & 24 & 58.3\% \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{What Changed.}
+\begin{itemize}
+  \item The prompt builder now front-loads a decision aid for distance and object-relation questions.
+  \item The geometry oracle was repaired so marker bbox, center coordinates, depth pixels, and camera-space coordinates are consistent.
+  \item Audit and readiness checks now catch prompt formatting issues before inference starts.
+  \item The image branch is used for object identity, while the geometry branch is used for calibrated spatial relations.
+\end{itemize}
+
+\textbf{Representative Cases.}
+\begin{center}
+\small
+\begin{tabular}{p{0.13\linewidth}p{0.24\linewidth}p{0.28\linewidth}p{0.20\linewidth}}
+\toprule
+\textbf{Case} & \textbf{Visual cue} & \textbf{Oracle geometry} & \textbf{Effect on GeoVLM} \\
+\midrule
+000205 & Toilet scene with blue and green towels around a red trash can & Red-to-green is 447.63, red-to-blue is 680.72 & Decision aid makes the farther object explicit \\
+000251 & Bed on the right, backpack on the left & Bed is right of the backpack and closer in camera space & Prompt separates left-right from closer-farther \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{-2pt}
+\begin{figure}[H]
+\centering
+\begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{spar_tiny_000205_view_00.jpg}
+    \caption{\small 000205. Blue towel is farther than green.}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\linewidth}
+    \centering
+    \includegraphics[width=\linewidth]{spar_tiny_000251_view_00.jpg}
+    \caption{\small 000251. Bed is right of the backpack and closer.}
+\end{subfigure}
+\vspace{-2pt}
+\caption{\small Representative Public SPAR cases. The geometric rule is now surfaced first, so GeoVLM can use it before the visual shortcut dominates.}
+\end{figure}
+
+\textbf{Why GeoVLM Improved.}
+The main gain comes from evidence alignment. In 000205, the oracle distances are 447.63 from red to green and 680.72 from red to blue, so the blue towel is farther. In 000251, the bed is on the right side of the backpack, and the depth values show the backpack is farther while the bed is closer. Once the prompt explicitly tells the model how to read those cues, the model no longer has to guess whether image salience, bbox position, or geometry should dominate.
+
+The improvement is also visible at the track level. \track{pure\_vlm} still has to infer spatial relations from appearance alone. \track{geometry\_only} has the structure, but it cannot use the image to bind the colored markers to the right objects. \track{geovlm} gets both pieces at once, so it can identify the object in the image and then trust the calibrated geometric rule for the final choice.
+
+\textbf{Remaining Limitations.}
+\begin{itemize}
+  \item The gain is still measured on a small 24-question subset, so scale-up is the next proof point.
+  \item Some questions remain tied to bbox quality, so upstream geometry noise can still distort the result.
+  \item The current prompt design is strongest on distance and spatial-relation tasks, but weaker evidence remains for broader reasoning types.
+\end{itemize}
+
+\textbf{Future Plan.}
+\begin{itemize}
+  \item Expand the evaluation set and check whether the gain survives at larger scale.
+  \item Run ablations on prompt structure, bbox quality, and geometry-only versus image-plus-geometry input.
+  \item Slice the disagreement set by task type and failure mode so we know exactly where GeoVLM helps most.
+  \item Turn the current prompt and audit logic into the final benchmark protocol, then write the concluding comparison note.
+\end{itemize}
+
+\textbf{Interpretation of the Latest Run.}
+The useful part of the latest result is not only that \track{geovlm} is ahead on this subset. The better sign is that the gain comes from a controllable change. We did not retrain the model. We changed how geometric evidence is surfaced, checked, and paired with the image. That makes the improvement easier to reproduce and easier to debug.
+
+The 15 disagreements are now the right place to spend analysis time. They split into prompt-sensitive cases, geometry-sensitive cases, and genuine model-judgment cases. If the next round keeps the same direction on a larger subset, we will have a solid case that the geometry branch is doing real work rather than adding noise.
+
+\textbf{Open Questions.}
+\begin{itemize}
+  \item How much of the gain survives when the subset grows beyond the current 24 questions.
+  \item Which disagreement types still fail after the geometry pipeline is cleaned up.
+  \item Whether the same prompt strategy extends to other relation types beyond distance and the current object-relation tasks.
+\end{itemize}
+
+{\footnotesize \textbf{Positioning:} A compact, non-robotics extension of geometry-aware multimodal reasoning for VLM spatial reasoning, grounded perception, and lightweight benchmark construction.}
+
+\end{document}

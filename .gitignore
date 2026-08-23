@@ -18,6 +18,7 @@ env/
 *.log
 *.aux
 *.out
+*.synctex.gz
 
 # Local agent planning artifacts
 docs/superpowers/
